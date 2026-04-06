@@ -1,0 +1,175 @@
+openapi: "3.1.0"
+info:
+  title: Sol Home Automation API
+  version: "0.1.0"
+  description: Backend API for the Sol home automation system.
+servers:
+  - url: http://localhost:8080
+    description: Local development
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+  /api/v1/devices:
+    get:
+      summary: List all devices
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of devices
+    post:
+      summary: Register a new device
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Device created
+  /api/v1/devices/{id}:
+    get:
+      summary: Get device by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Device details
+    put:
+      summary: Update device
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Device updated
+    delete:
+      summary: Delete device
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Device deleted
+  /api/v1/devices/{id}/command:
+    post:
+      summary: Send command to device
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Command accepted
+  /api/v1/automations:
+    get:
+      summary: List automation rules
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of rules
+    post:
+      summary: Create automation rule
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Rule created
+  /api/v1/automations/{id}:
+    get:
+      summary: Get automation rule
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rule details
+    put:
+      summary: Update automation rule
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rule updated
+    delete:
+      summary: Delete automation rule
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Rule deleted
+  /api/v1/firmware:
+    get:
+      summary: List firmware files
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of firmware files
+  /api/v1/firmware/upload:
+    post:
+      summary: Upload firmware binary
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Firmware uploaded
+  /api/v1/firmware/{id}/download:
+    get:
+      summary: Download firmware binary
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Firmware binary
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
