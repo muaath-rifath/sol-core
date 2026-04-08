@@ -1,53 +1,142 @@
 services:
+  traefik:
+    image: traefik:v3.3
+    container_name: sol-traefik
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.email=YOUR_EMAIL"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/acme.json:/acme/acme.json
+    networks:
+      - sol-net
+
+  sol-core:
+    build: .
+    container_name: sol-core
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vernemq:
+        condition: service_started
+      minio:
+        condition: service_started
+    networks:
+      - sol-net
+    labels:
+      - "traefik.enable=true"
+      # Main API routes (JWT protected)
+      - "traefik.http.routers.sol.rule=Host(`YOUR_API_DOMAIN`)"
+      - "traefik.http.routers.sol.entrypoints=websecure"
+      - "traefik.http.routers.sol.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sol.middlewares=sol-auth"
+      - "traefik.http.routers.sol.service=sol-svc"
+      # ForwardAuth middleware — validates Bearer token via Keycloak userinfo
+      - "traefik.http.middlewares.sol-auth.forwardauth.address=https://lemur-2.cloud-iam.com/auth/realms/sol/protocol/openid-connect/userinfo"
+      - "traefik.http.middlewares.sol-auth.forwardauth.authRequestHeaders=Authorization"
+      # Health check — no auth
+      - "traefik.http.routers.sol-health.rule=Host(`YOUR_API_DOMAIN`) && Path(`/healthz`)"
+      - "traefik.http.routers.sol-health.entrypoints=websecure"
+      - "traefik.http.routers.sol-health.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sol-health.service=sol-svc"
+      # Service definition
+      - "traefik.http.services.sol-svc.loadbalancer.server.port=8080"
+
   postgres:
-    image: timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb-ha:pg16-latest
+    container_name: sol-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: sol
       POSTGRES_PASSWORD: sol
       POSTGRES_DB: sol
-    ports:
-      - "5432:5432"
+      PATRONI_POSTGRESQL_PARAMETERS_SHARED_BUFFERS: 512MB
+      PATRONI_POSTGRESQL_PARAMETERS_WORK_MEM: 8MB
+      PATRONI_POSTGRESQL_PARAMETERS_MAINTENANCE_WORK_MEM: 128MB
+      PATRONI_POSTGRESQL_PARAMETERS_EFFECTIVE_CACHE_SIZE: 1536MB
     volumes:
       - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sol -d sol"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 1800m
+    mem_reservation: 900m
+    networks:
+      - sol-net
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    container_name: sol-redis-queue
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - yes
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    mem_limit: 320m
+    mem_reservation: 128m
+    networks:
+      - sol-net
 
   vernemq:
     image: vernemq/vernemq:latest
+    container_name: sol-vernemq
+    restart: unless-stopped
     environment:
       DOCKER_VERNEMQ_ACCEPT_EULA: "yes"
       DOCKER_VERNEMQ_ALLOW_ANONYMOUS: "on"
     ports:
       - "1883:1883"
-      - "8883:8883"
+    networks:
+      - sol-net
 
   minio:
     image: minio/minio:latest
+    container_name: sol-minio
+    restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     volumes:
       - minio_data:/data
+    mem_limit: 700m
+    mem_reservation: 256m
+    networks:
+      - sol-net
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - qdrant_data:/qdrant/storage
+networks:
+  sol-net:
+    driver: bridge
 
 volumes:
   pg_data:
   redis_data:
   minio_data:
-  qdrant_data:
