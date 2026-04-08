@@ -1,5 +1,6 @@
--- Enable TimescaleDB extension
+-- Enable extensions
 CREATE EXTENSION IF NOT EXISTS timescaledb;
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Rooms
 CREATE TABLE IF NOT EXISTS rooms (
@@ -54,3 +55,10 @@ CREATE TABLE IF NOT EXISTS automation_rules (
 );
 
 CREATE INDEX idx_automation_rules_enabled ON automation_rules(enabled);
+
+-- Vector embeddings for semantic search (pgvector)
+ALTER TABLE automation_rules ADD COLUMN IF NOT EXISTS embedding vector(1536);
+ALTER TABLE devices          ADD COLUMN IF NOT EXISTS embedding vector(1536);
+
+CREATE INDEX IF NOT EXISTS idx_automation_rules_embedding ON automation_rules USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_devices_embedding          ON devices          USING hnsw (embedding vector_cosine_ops);
