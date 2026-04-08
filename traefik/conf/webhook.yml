@@ -1,0 +1,15 @@
+http:
+  routers:
+    webhook:
+      rule: "Host(`api.sol.muaathrifath.me`) && Path(`/deploy`) && Method(`POST`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      service: webhook-svc
+
+  services:
+    webhook-svc:
+      loadBalancer:
+        servers:
+          - url: "http://host-gateway:9000"
