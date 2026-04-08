@@ -10,7 +10,7 @@ services:
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.letsencrypt.acme.email=YOUR_EMAIL"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json"
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
     ports:
@@ -43,7 +43,7 @@ services:
     labels:
       - "traefik.enable=true"
       # Main API routes (JWT protected)
-      - "traefik.http.routers.sol.rule=Host(`YOUR_API_DOMAIN`)"
+      - "traefik.http.routers.sol.rule=Host(`${API_DOMAIN}`)"
       - "traefik.http.routers.sol.entrypoints=websecure"
       - "traefik.http.routers.sol.tls.certresolver=letsencrypt"
       - "traefik.http.routers.sol.middlewares=sol-auth"
@@ -52,7 +52,7 @@ services:
       - "traefik.http.middlewares.sol-auth.forwardauth.address=https://lemur-2.cloud-iam.com/auth/realms/sol/protocol/openid-connect/userinfo"
       - "traefik.http.middlewares.sol-auth.forwardauth.authRequestHeaders=Authorization"
       # Health check — no auth
-      - "traefik.http.routers.sol-health.rule=Host(`YOUR_API_DOMAIN`) && Path(`/healthz`)"
+      - "traefik.http.routers.sol-health.rule=Host(`${API_DOMAIN}`) && Path(`/healthz`)"
       - "traefik.http.routers.sol-health.entrypoints=websecure"
       - "traefik.http.routers.sol-health.tls.certresolver=letsencrypt"
       - "traefik.http.routers.sol-health.service=sol-svc"
@@ -60,7 +60,9 @@ services:
       - "traefik.http.services.sol-svc.loadbalancer.server.port=8080"
 
   postgres:
-    image: timescale/timescaledb-ha:pg16-latest
+    build:
+      context: .
+      dockerfile: postgres.Dockerfile
     container_name: sol-postgres
     restart: unless-stopped
     environment:
