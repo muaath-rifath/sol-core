@@ -15,8 +15,10 @@ import (
 	"github.com/muaathrifath/sol-core/internal/config"
 	"github.com/muaathrifath/sol-core/internal/device"
 	"github.com/muaathrifath/sol-core/internal/firmware"
+	"github.com/muaathrifath/sol-core/internal/home"
 	"github.com/muaathrifath/sol-core/internal/mqtt"
 	"github.com/muaathrifath/sol-core/internal/platform"
+	"github.com/muaathrifath/sol-core/internal/user"
 	"github.com/muaathrifath/sol-core/internal/ws"
 )
 
@@ -50,13 +52,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	// User repository (needed by auth middleware)
+	userRepo := user.NewRepository(pgPool)
+	userSvc := user.NewService(userRepo)
+	userHandler := user.NewHandler(userSvc)
+
 	// Auth
 	oidcVerifier, err := auth.NewOIDCVerifier(ctx, cfg.OIDCIssuer, cfg.OIDCClientID)
 	if err != nil {
 		slog.Error("failed to init oidc verifier", "error", err)
 		os.Exit(1)
 	}
-	authMiddleware := auth.NewMiddleware(oidcVerifier)
+	authMiddleware := auth.NewMiddleware(oidcVerifier, userRepo)
 
 	// WebSocket hub
 	hub := ws.NewHub(rdb)
@@ -85,12 +92,35 @@ func main() {
 	firmwareStore := firmware.NewStore(minioClient, cfg.MinioBucket)
 	firmwareHandler := firmware.NewHandler(firmwareStore)
 
+	homeRepo := home.NewRepository(pgPool)
+	homeSvc := home.NewService(homeRepo, userRepo)
+	homeHandler := home.NewHandler(homeSvc)
+
 	// MQTT message handler
 	mqttHandler := mqtt.NewHandler(deviceSvc, hub)
 	mqttClient.SetMessageHandler(mqttHandler.Handle)
 
 	// Routes
 	mux := http.NewServeMux()
+
+	// User routes
+	mux.Handle("GET /api/v1/me", authMiddleware.Wrap(http.HandlerFunc(userHandler.Me)))
+
+	// Home routes
+	mux.Handle("POST /api/v1/homes", authMiddleware.Wrap(http.HandlerFunc(homeHandler.CreateHome)))
+	mux.Handle("GET /api/v1/homes", authMiddleware.Wrap(http.HandlerFunc(homeHandler.ListHomes)))
+	mux.Handle("GET /api/v1/homes/{id}", authMiddleware.Wrap(http.HandlerFunc(homeHandler.GetHome)))
+	mux.Handle("PUT /api/v1/homes/{id}", authMiddleware.Wrap(http.HandlerFunc(homeHandler.UpdateHome)))
+	mux.Handle("DELETE /api/v1/homes/{id}", authMiddleware.Wrap(http.HandlerFunc(homeHandler.DeleteHome)))
+	mux.Handle("GET /api/v1/homes/{id}/members", authMiddleware.Wrap(http.HandlerFunc(homeHandler.ListMembers)))
+	mux.Handle("POST /api/v1/homes/{id}/members", authMiddleware.Wrap(http.HandlerFunc(homeHandler.AddMember)))
+	mux.Handle("PATCH /api/v1/homes/{id}/members/{userId}/role", authMiddleware.Wrap(http.HandlerFunc(homeHandler.UpdateMemberRole)))
+	mux.Handle("DELETE /api/v1/homes/{id}/members/{userId}", authMiddleware.Wrap(http.HandlerFunc(homeHandler.RemoveMember)))
+	mux.Handle("POST /api/v1/homes/{id}/invitations", authMiddleware.Wrap(http.HandlerFunc(homeHandler.InviteByEmail)))
+	mux.Handle("GET /api/v1/homes/{id}/invitations", authMiddleware.Wrap(http.HandlerFunc(homeHandler.ListInvitations)))
+	mux.Handle("DELETE /api/v1/homes/{id}/invitations/{invId}", authMiddleware.Wrap(http.HandlerFunc(homeHandler.CancelInvitation)))
+	mux.Handle("POST /api/v1/invitations/{token}/accept", authMiddleware.Wrap(http.HandlerFunc(homeHandler.AcceptInvitation)))
+	mux.Handle("POST /api/v1/invitations/{token}/decline", authMiddleware.Wrap(http.HandlerFunc(homeHandler.DeclineInvitation)))
 
 	// Device routes
 	mux.Handle("GET /api/v1/devices", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.List)))

@@ -5,18 +5,26 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/muaathrifath/sol-core/internal/user"
 )
 
 type contextKey string
 
 const ClaimsKey contextKey = "claims"
 
-type Middleware struct {
-	verifier *OIDCVerifier
+// UserUpserter is implemented by user.Repository
+type UserUpserter interface {
+	Upsert(ctx context.Context, keycloakID, email, name string) (*user.User, error)
 }
 
-func NewMiddleware(verifier *OIDCVerifier) *Middleware {
-	return &Middleware{verifier: verifier}
+type Middleware struct {
+	verifier *OIDCVerifier
+	users    UserUpserter
+}
+
+func NewMiddleware(verifier *OIDCVerifier, users UserUpserter) *Middleware {
+	return &Middleware{verifier: verifier, users: users}
 }
 
 func (m *Middleware) Wrap(next http.Handler) http.Handler {
@@ -34,7 +42,15 @@ func (m *Middleware) Wrap(next http.Handler) http.Handler {
 			return
 		}
 
+		u, err := m.users.Upsert(r.Context(), claims.Subject, claims.Email, claims.Name)
+		if err != nil {
+			slog.Error("user upsert failed", "error", err)
+			http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+			return
+		}
+
 		ctx := context.WithValue(r.Context(), ClaimsKey, claims)
+		ctx = user.WithContext(ctx, u)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
