@@ -31,6 +31,14 @@ type Config struct {
 
 	// AI Service
 	AIServiceURL string
+
+	// Brevo transactional email (optional — email disabled if BrevoAPIKey is empty)
+	BrevoAPIKey      string
+	BrevoSenderEmail string
+	BrevoSenderName  string
+
+	// FrontendURL is used to construct invite links in emails
+	FrontendURL string
 }
 
 func Load() (*Config, error) {
@@ -45,9 +53,13 @@ func Load() (*Config, error) {
 		MinioSecretKey: envOrDefault("MINIO_SECRET_KEY", "minioadmin"),
 		MinioUseSSL:   os.Getenv("MINIO_USE_SSL") == "true",
 		MinioBucket:   envOrDefault("MINIO_BUCKET", "firmware"),
-		OIDCIssuer:    os.Getenv("OIDC_ISSUER"),
-		OIDCClientID:  os.Getenv("OIDC_CLIENT_ID"),
-		AIServiceURL:  envOrDefault("AI_SERVICE_URL", "http://localhost:8000"),
+		OIDCIssuer:       os.Getenv("OIDC_ISSUER"),
+		OIDCClientID:     os.Getenv("OIDC_CLIENT_ID"),
+		AIServiceURL:     envOrDefault("AI_SERVICE_URL", "http://localhost:8000"),
+		BrevoAPIKey:      os.Getenv("BREVO_API_KEY"),
+		BrevoSenderEmail: envOrDefault("BREVO_SENDER_EMAIL", "noreply@sol.app"),
+		BrevoSenderName:  envOrDefault("BREVO_SENDER_NAME", "Sol"),
+		FrontendURL:      envOrDefault("FRONTEND_URL", "http://localhost:3000"),
 	}
 
 	if cfg.OIDCIssuer == "" {

@@ -15,16 +15,20 @@ const ClaimsKey contextKey = "claims"
 
 // UserUpserter is implemented by user.Repository
 type UserUpserter interface {
-	Upsert(ctx context.Context, keycloakID, email, name string) (*user.User, error)
+	Upsert(ctx context.Context, keycloakID, email, name string) (*user.User, bool, error)
 }
 
 type Middleware struct {
-	verifier *OIDCVerifier
-	users    UserUpserter
+	verifier  *OIDCVerifier
+	users     UserUpserter
+	onNewUser func(ctx context.Context, u *user.User)
 }
 
-func NewMiddleware(verifier *OIDCVerifier, users UserUpserter) *Middleware {
-	return &Middleware{verifier: verifier, users: users}
+// NewMiddleware creates the auth middleware.
+// onNewUser is called (synchronously, within the request context) the first time a user logs in.
+// Pass nil if no action is needed on first login.
+func NewMiddleware(verifier *OIDCVerifier, users UserUpserter, onNewUser func(context.Context, *user.User)) *Middleware {
+	return &Middleware{verifier: verifier, users: users, onNewUser: onNewUser}
 }
 
 func (m *Middleware) Wrap(next http.Handler) http.Handler {
@@ -42,11 +46,15 @@ func (m *Middleware) Wrap(next http.Handler) http.Handler {
 			return
 		}
 
-		u, err := m.users.Upsert(r.Context(), claims.Subject, claims.Email, claims.Name)
+		u, created, err := m.users.Upsert(r.Context(), claims.Subject, claims.Email, claims.Name)
 		if err != nil {
 			slog.Error("user upsert failed", "error", err)
 			http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
 			return
+		}
+
+		if created && m.onNewUser != nil {
+			m.onNewUser(r.Context(), u)
 		}
 
 		ctx := context.WithValue(r.Context(), ClaimsKey, claims)
