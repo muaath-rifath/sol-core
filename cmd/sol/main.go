@@ -52,10 +52,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Brevo email client (nil when API key not configured — email silently disabled)
+	var brevoClient *platform.BrevoClient
+	if cfg.BrevoAPIKey != "" {
+		brevoClient = platform.NewBrevoClient(cfg.BrevoAPIKey, cfg.BrevoSenderEmail, cfg.BrevoSenderName)
+		slog.Info("brevo email enabled", "sender", cfg.BrevoSenderEmail)
+	} else {
+		slog.Info("brevo api key not set — invitation emails disabled")
+	}
+
 	// User repository (needed by auth middleware)
 	userRepo := user.NewRepository(pgPool)
 	userSvc := user.NewService(userRepo)
 	userHandler := user.NewHandler(userSvc)
+
+	// Home service
+	homeRepo := home.NewRepository(pgPool)
+	homeSvc := home.NewService(homeRepo, userRepo, rdb, brevoClient, cfg.FrontendURL)
+	homeHandler := home.NewHandler(homeSvc)
 
 	// Auth
 	oidcVerifier, err := auth.NewOIDCVerifier(ctx, cfg.OIDCIssuer, cfg.OIDCClientID)
@@ -63,7 +77,8 @@ func main() {
 		slog.Error("failed to init oidc verifier", "error", err)
 		os.Exit(1)
 	}
-	authMiddleware := auth.NewMiddleware(oidcVerifier, userRepo)
+	// No implicit home creation on first login.
+	authMiddleware := auth.NewMiddleware(oidcVerifier, userRepo, nil)
 
 	// WebSocket hub
 	hub := ws.NewHub(rdb)
@@ -92,10 +107,6 @@ func main() {
 	firmwareStore := firmware.NewStore(minioClient, cfg.MinioBucket)
 	firmwareHandler := firmware.NewHandler(firmwareStore)
 
-	homeRepo := home.NewRepository(pgPool)
-	homeSvc := home.NewService(homeRepo, userRepo)
-	homeHandler := home.NewHandler(homeSvc)
-
 	// MQTT message handler
 	mqttHandler := mqtt.NewHandler(deviceSvc, hub)
 	mqttClient.SetMessageHandler(mqttHandler.Handle)
@@ -112,6 +123,7 @@ func main() {
 	mux.Handle("GET /api/v1/homes/{id}", authMiddleware.Wrap(http.HandlerFunc(homeHandler.GetHome)))
 	mux.Handle("PUT /api/v1/homes/{id}", authMiddleware.Wrap(http.HandlerFunc(homeHandler.UpdateHome)))
 	mux.Handle("DELETE /api/v1/homes/{id}", authMiddleware.Wrap(http.HandlerFunc(homeHandler.DeleteHome)))
+	mux.Handle("POST /api/v1/homes/{id}/transfer-ownership", authMiddleware.Wrap(http.HandlerFunc(homeHandler.TransferOwnership)))
 	mux.Handle("GET /api/v1/homes/{id}/members", authMiddleware.Wrap(http.HandlerFunc(homeHandler.ListMembers)))
 	mux.Handle("POST /api/v1/homes/{id}/members", authMiddleware.Wrap(http.HandlerFunc(homeHandler.AddMember)))
 	mux.Handle("PATCH /api/v1/homes/{id}/members/{userId}/role", authMiddleware.Wrap(http.HandlerFunc(homeHandler.UpdateMemberRole)))
@@ -120,7 +132,9 @@ func main() {
 	mux.Handle("GET /api/v1/homes/{id}/invitations", authMiddleware.Wrap(http.HandlerFunc(homeHandler.ListInvitations)))
 	mux.Handle("DELETE /api/v1/homes/{id}/invitations/{invId}", authMiddleware.Wrap(http.HandlerFunc(homeHandler.CancelInvitation)))
 	mux.Handle("POST /api/v1/invitations/{token}/accept", authMiddleware.Wrap(http.HandlerFunc(homeHandler.AcceptInvitation)))
-	mux.Handle("POST /api/v1/invitations/{token}/decline", authMiddleware.Wrap(http.HandlerFunc(homeHandler.DeclineInvitation)))
+	// Public invite endpoints — token is the secret, no account required
+	mux.HandleFunc("GET /api/v1/invitations/{token}", homeHandler.GetInvitation)
+	mux.HandleFunc("POST /api/v1/invitations/{token}/decline", homeHandler.DeclineInvitation)
 
 	// Device routes
 	mux.Handle("GET /api/v1/devices", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.List)))

@@ -5,9 +5,18 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/muaathrifath/sol-core/internal/user"
 )
+
+// parseCursorLimit reads ?cursor= and ?limit= query params.
+// Missing/invalid limit falls back to service defaults.
+func parseCursorLimit(r *http.Request) (cursor string, limit int) {
+	cursor = r.URL.Query().Get("cursor")
+	limit, _ = strconv.Atoi(r.URL.Query().Get("limit"))
+	return
+}
 
 type Handler struct {
 	svc *Service
@@ -26,12 +35,16 @@ func (h *Handler) CreateHome(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
-		http.Error(w, `{"error":"name is required"}`, http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 	home, err := h.svc.CreateHome(r.Context(), u.ID, req.Name)
 	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
 		slog.Error("create home", "error", err)
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
 		return
@@ -45,13 +58,18 @@ func (h *Handler) ListHomes(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
 	}
-	homes, err := h.svc.ListHomes(r.Context(), u.ID)
+	cursor, limit := parseCursorLimit(r)
+	resp, err := h.svc.ListHomes(r.Context(), u.ID, cursor, limit)
 	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
 		slog.Error("list homes", "error", err)
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusOK, homes)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) GetHome(w http.ResponseWriter, r *http.Request) {
@@ -83,12 +101,16 @@ func (h *Handler) UpdateHome(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
-		http.Error(w, `{"error":"name is required"}`, http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 	home, err := h.svc.UpdateHome(r.Context(), u.ID, id, req.Name)
 	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
 		if errors.Is(err, ErrForbidden) {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
@@ -130,17 +152,22 @@ func (h *Handler) ListMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	members, err := h.svc.ListMembers(r.Context(), u.ID, id)
+	cursor, limit := parseCursorLimit(r)
+	resp, err := h.svc.ListMembers(r.Context(), u.ID, id, cursor, limit)
 	if err != nil {
 		if errors.Is(err, ErrForbidden) {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
 		slog.Error("list members", "error", err)
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusOK, members)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) AddMember(w http.ResponseWriter, r *http.Request) {
@@ -162,10 +189,22 @@ func (h *Handler) AddMember(w http.ResponseWriter, r *http.Request) {
 	if role == "" {
 		role = RoleMember
 	}
+	if role != RoleMember && role != RoleAdmin {
+		writeError(w, http.StatusBadRequest, "role must be 'admin' or 'member'")
+		return
+	}
 	member, err := h.svc.AddMember(r.Context(), u.ID, id, req.UserID, role)
 	if err != nil {
 		if errors.Is(err, ErrForbidden) {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			http.Error(w, `{"error":"user not found"}`, http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, ErrConflict) {
+			writeError(w, http.StatusConflict, err.Error())
 			return
 		}
 		slog.Error("add member", "error", err)
@@ -190,7 +229,12 @@ func (h *Handler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"role is required"}`, http.StatusBadRequest)
 		return
 	}
-	if err := h.svc.UpdateMemberRole(r.Context(), u.ID, homeID, userID, MemberRole(req.Role)); err != nil {
+	role := MemberRole(req.Role)
+	if role != RoleMember && role != RoleAdmin {
+		writeError(w, http.StatusBadRequest, "role must be 'admin' or 'member' (use transfer-ownership to change the owner)")
+		return
+	}
+	if err := h.svc.UpdateMemberRole(r.Context(), u.ID, homeID, userID, role); err != nil {
 		if errors.Is(err, ErrForbidden) {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 			return
@@ -230,6 +274,46 @@ func (h *Handler) RemoveMember(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// TransferOwnership hands home ownership from the caller to another member.
+// The caller must be the current owner.
+func (h *Handler) TransferOwnership(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	homeID := r.PathValue("id")
+	var req struct {
+		UserID string `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID == "" {
+		http.Error(w, `{"error":"user_id is required"}`, http.StatusBadRequest)
+		return
+	}
+	if err := h.svc.TransferOwnership(r.Context(), u.ID, homeID, req.UserID); err != nil {
+		if errors.Is(err, ErrForbidden) {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, ErrNotFound) {
+			http.Error(w, `{"error":"target user is not a member of this home"}`, http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, ErrConflict) {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		slog.Error("transfer ownership", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) InviteByEmail(w http.ResponseWriter, r *http.Request) {
 	u := user.FromContext(r.Context())
 	if u == nil {
@@ -246,8 +330,16 @@ func (h *Handler) InviteByEmail(w http.ResponseWriter, r *http.Request) {
 	}
 	inv, err := h.svc.InviteByEmail(r.Context(), u.ID, id, req.Email)
 	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
 		if errors.Is(err, ErrForbidden) {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, ErrConflict) {
+			writeError(w, http.StatusConflict, err.Error())
 			return
 		}
 		slog.Error("invite by email", "error", err)
@@ -264,17 +356,23 @@ func (h *Handler) ListInvitations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
-	invitations, err := h.svc.ListInvitations(r.Context(), u.ID, id)
+	statusFilter := r.URL.Query().Get("status")
+	cursor, limit := parseCursorLimit(r)
+	resp, err := h.svc.ListInvitations(r.Context(), u.ID, id, statusFilter, cursor, limit)
 	if err != nil {
 		if errors.Is(err, ErrForbidden) {
 			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
 		slog.Error("list invitations", "error", err)
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusOK, invitations)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) CancelInvitation(w http.ResponseWriter, r *http.Request) {
@@ -305,6 +403,23 @@ func (h *Handler) CancelInvitation(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GetInvitation returns public details about an invitation — no auth required.
+// The frontend uses this to render the invite landing page before the user logs in.
+func (h *Handler) GetInvitation(w http.ResponseWriter, r *http.Request) {
+	token := r.PathValue("token")
+	detail, err := h.svc.GetInvitation(r.Context(), token)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			http.Error(w, `{"error":"invitation not found or expired"}`, http.StatusNotFound)
+			return
+		}
+		slog.Error("get invitation", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
+}
+
 func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	u := user.FromContext(r.Context())
 	if u == nil {
@@ -319,7 +434,7 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, ErrNotFound) {
-			http.Error(w, `{"error":"invitation not found"}`, http.StatusNotFound)
+			http.Error(w, `{"error":"invitation not found or expired"}`, http.StatusNotFound)
 			return
 		}
 		if errors.Is(err, ErrConflict) {
@@ -333,20 +448,14 @@ func (h *Handler) AcceptInvitation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, home)
 }
 
+// DeclineInvitation declines an invitation by token — no auth required.
+// The token itself (256-bit secret) is sufficient proof of intent.
+// This allows non-registered users to decline without creating an account.
 func (h *Handler) DeclineInvitation(w http.ResponseWriter, r *http.Request) {
-	u := user.FromContext(r.Context())
-	if u == nil {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-		return
-	}
 	token := r.PathValue("token")
-	if err := h.svc.DeclineInvitation(r.Context(), u.ID, token); err != nil {
-		if errors.Is(err, ErrForbidden) {
-			http.Error(w, `{"error":"this invitation is not for your email"}`, http.StatusForbidden)
-			return
-		}
+	if err := h.svc.DeclineInvitation(r.Context(), token); err != nil {
 		if errors.Is(err, ErrNotFound) {
-			http.Error(w, `{"error":"invitation not found"}`, http.StatusNotFound)
+			http.Error(w, `{"error":"invitation not found or expired"}`, http.StatusNotFound)
 			return
 		}
 		if errors.Is(err, ErrConflict) {
@@ -364,4 +473,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(v)
+}
+
+// writeError writes a JSON error response with the given status and message.
+func writeError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
