@@ -54,7 +54,7 @@ services:
       - "traefik.http.routers.sol.middlewares=sol-auth"
       - "traefik.http.routers.sol.service=sol-svc"
       # ForwardAuth middleware — validates Bearer token via Keycloak userinfo
-      - "traefik.http.middlewares.sol-auth.forwardauth.address=https://lemur-2.cloud-iam.com/auth/realms/sol/protocol/openid-connect/userinfo"
+      - "traefik.http.middlewares.sol-auth.forwardauth.address=${OIDC_ISSUER}/protocol/openid-connect/userinfo"
       - "traefik.http.middlewares.sol-auth.forwardauth.authRequestHeaders=Authorization"
       # Health check — no auth
       - "traefik.http.routers.sol-health.rule=Host(`${API_DOMAIN}`) && Path(`/healthz`)"
