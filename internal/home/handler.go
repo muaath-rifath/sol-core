@@ -45,6 +45,10 @@ func (h *Handler) CreateHome(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
+		if errors.Is(err, ErrConflict) {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
 		slog.Error("create home", "error", err)
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
 		return
