@@ -79,7 +79,7 @@ services:
       PATRONI_POSTGRESQL_PARAMETERS_MAINTENANCE_WORK_MEM: 128MB
       PATRONI_POSTGRESQL_PARAMETERS_EFFECTIVE_CACHE_SIZE: 1536MB
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - pg_data:/home/postgres/pgdata
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sol -d sol"]
       interval: 5s
