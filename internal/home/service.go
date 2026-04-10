@@ -164,6 +164,10 @@ func (s *Service) CreateHome(ctx context.Context, ownerID, name string) (*Home, 
 		UpdatedAt: now,
 	}
 	if err := s.repo.Create(ctx, h); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, fmt.Errorf("%w: a home with this name already exists", ErrConflict)
+		}
 		return nil, err
 	}
 	m := &Member{
