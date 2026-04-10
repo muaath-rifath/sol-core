@@ -359,7 +359,7 @@ func (s *Service) TransferOwnership(ctx context.Context, ownerID, homeID, newOwn
 
 // GetInvitation returns the public details of an invitation by token.
 // No authentication required — the token is the secret.
-// Returns ErrNotFound if the token doesn't exist, is no longer pending, or is expired.
+// Returns ErrNotFound only when the token doesn't exist.
 func (s *Service) GetInvitation(ctx context.Context, token string) (*InvitationDetail, error) {
 	if token == "" {
 		return nil, ErrNotFound
@@ -370,13 +370,10 @@ func (s *Service) GetInvitation(ctx context.Context, token string) (*InvitationD
 	if err != nil {
 		return nil, ErrNotFound
 	}
-	if detail.Status != StatusPending {
-		return nil, ErrNotFound
-	}
-	if time.Now().After(detail.ExpiresAt) {
-		s.repo.UpdateInvitationStatus(ctx, detail.ID, StatusExpired)
+	if detail.Status == StatusPending && time.Now().After(detail.ExpiresAt) {
+		_ = s.repo.UpdateInvitationStatus(ctx, detail.ID, StatusExpired)
+		detail.Status = StatusExpired
 		s.deleteInviteToken(ctx, token)
-		return nil, ErrNotFound
 	}
 	return detail, nil
 }

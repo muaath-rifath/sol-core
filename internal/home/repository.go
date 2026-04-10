@@ -2,6 +2,7 @@ package home
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -339,6 +340,7 @@ func (r *Repository) AcceptInvitationTx(ctx context.Context, invID string, m *Me
 func (r *Repository) GetInvitationDetail(ctx context.Context, token string) (*InvitationDetail, error) {
 	var d InvitationDetail
 	var status string
+	var inviterName sql.NullString
 	err := r.pool.QueryRow(ctx,
 		`SELECT i.id, i.home_id, h.name,
 		        i.inviter_id, u.name,
@@ -346,16 +348,21 @@ func (r *Repository) GetInvitationDetail(ctx context.Context, token string) (*In
 		        EXISTS(SELECT 1 FROM users ux WHERE LOWER(ux.email) = LOWER(i.invitee_email)) AS invitee_is_user
 		 FROM home_invitations i
 		 JOIN homes h ON h.id = i.home_id
-		 JOIN users u ON u.id = i.inviter_id
+		 LEFT JOIN users u ON u.id = i.inviter_id
 		 WHERE i.token = $1`, token,
 	).Scan(
 		&d.ID, &d.HomeID, &d.HomeName,
-		&d.InviterID, &d.InviterName,
+		&d.InviterID, &inviterName,
 		&d.InviteeEmail, &status, &d.ExpiresAt, &d.CreatedAt,
 		&d.InviteeIsUser,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get invitation detail: %w", err)
+	}
+	if inviterName.Valid {
+		d.InviterName = inviterName.String
+	} else {
+		d.InviterName = "A Sol member"
 	}
 	d.Status = InvitationStatus(status)
 	return &d, nil
