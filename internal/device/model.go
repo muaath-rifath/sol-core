@@ -2,6 +2,12 @@ package device
 
 import "time"
 
+type CursorResponse[T any] struct {
+	Data       []T     `json:"data"`
+	NextCursor *string `json:"next_cursor"`
+	HasMore    bool    `json:"has_more"`
+}
+
 type Device struct {
 	ID         string            `json:"id"`
 	Name       string            `json:"name"`

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,16 +25,23 @@ func NewHandler(svc *Service, firmwareStore *firmware.Store, versionRepo *firmwa
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
-	devices, err := h.svc.List(r.Context())
+	cursor := r.URL.Query().Get("cursor")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+
+	resp, err := h.svc.ListPaginated(r.Context(), cursor, limit)
 	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			http.Error(w, `{"error":"invalid cursor"}`, http.StatusUnprocessableEntity)
+			return
+		}
 		slog.Error("list devices", "error", err)
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
 		return
 	}
-	if devices == nil {
-		devices = []Device{}
+	if resp.Data == nil {
+		resp.Data = []Device{}
 	}
-	writeJSON(w, http.StatusOK, devices)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -170,16 +178,23 @@ func (h *Handler) ListByRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	devices, err := h.svc.ListByRoom(r.Context(), roomID)
+	cursor := r.URL.Query().Get("cursor")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+
+	resp, err := h.svc.ListByRoomPaginated(r.Context(), roomID, cursor, limit)
 	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			http.Error(w, `{"error":"invalid cursor"}`, http.StatusUnprocessableEntity)
+			return
+		}
 		slog.Error("list devices by room", "error", err)
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
 		return
 	}
-	if devices == nil {
-		devices = []Device{}
+	if resp.Data == nil {
+		resp.Data = []Device{}
 	}
-	writeJSON(w, http.StatusOK, devices)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) CreateInRoom(w http.ResponseWriter, r *http.Request) {

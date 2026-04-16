@@ -2,8 +2,10 @@ package room
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/muaathrifath/sol-core/internal/user"
@@ -24,14 +26,20 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	homeID := r.PathValue("homeId")
-	rooms, err := h.svc.List(r.Context(), homeID)
+	cursor := r.URL.Query().Get("cursor")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	rooms, err := h.svc.List(r.Context(), homeID, cursor, limit)
 	if err != nil {
+		if errors.Is(err, ErrValidation) {
+			writeError(w, http.StatusUnprocessableEntity, "invalid cursor")
+			return
+		}
 		slog.Error("list rooms", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal")
 		return
 	}
-	if rooms == nil {
-		rooms = []Room{}
+	if rooms.Data == nil {
+		rooms.Data = []Room{}
 	}
 	writeJSON(w, http.StatusOK, rooms)
 }

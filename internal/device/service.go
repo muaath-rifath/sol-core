@@ -2,13 +2,69 @@ package device
 
 import (
 	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/muaathrifath/sol-core/internal/mqtt"
 	"github.com/muaathrifath/sol-core/internal/ws"
 )
+
+var ErrValidation = errors.New("validation error")
+
+const defaultLimit = 20
+const maxLimit = 100
+
+func normalizeLimit(limit int) int {
+	if limit < 1 {
+		return defaultLimit
+	}
+	if limit > maxLimit {
+		return maxLimit
+	}
+	return limit
+}
+
+func encodeCursor(t time.Time, id string) string {
+	raw := t.UTC().Format(time.RFC3339Nano) + "|" + id
+	return base64.URLEncoding.EncodeToString([]byte(raw))
+}
+
+func decodeCursor(s string) (*time.Time, string, error) {
+	if s == "" {
+		return nil, "", nil
+	}
+	b, err := base64.URLEncoding.DecodeString(s)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: invalid cursor", ErrValidation)
+	}
+	parts := strings.SplitN(string(b), "|", 2)
+	if len(parts) != 2 {
+		return nil, "", fmt.Errorf("%w: invalid cursor format", ErrValidation)
+	}
+	t, err := time.Parse(time.RFC3339Nano, parts[0])
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: invalid cursor timestamp", ErrValidation)
+	}
+	return &t, parts[1], nil
+}
+
+func buildCursorResponse[T any](items []T, limit int, cursorFn func(T) (time.Time, string)) *CursorResponse[T] {
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	resp := &CursorResponse[T]{Data: items, HasMore: hasMore}
+	if hasMore && len(items) > 0 {
+		t, id := cursorFn(items[len(items)-1])
+		encoded := encodeCursor(t, id)
+		resp.NextCursor = &encoded
+	}
+	return resp
+}
 
 type Service struct {
 	repo *Repository
@@ -47,8 +103,38 @@ func (s *Service) List(ctx context.Context) ([]Device, error) {
 	return s.repo.List(ctx)
 }
 
+func (s *Service) ListPaginated(ctx context.Context, cursor string, limit int) (*CursorResponse[Device], error) {
+	limit = normalizeLimit(limit)
+	cursorTime, cursorID, err := decodeCursor(cursor)
+	if err != nil {
+		return nil, err
+	}
+	devices, err := s.repo.ListPaginated(ctx, cursorTime, cursorID, limit+1)
+	if err != nil {
+		return nil, err
+	}
+	return buildCursorResponse(devices, limit, func(d Device) (time.Time, string) {
+		return d.CreatedAt, d.ID
+	}), nil
+}
+
 func (s *Service) ListByRoom(ctx context.Context, roomID string) ([]Device, error) {
 	return s.repo.ListByRoom(ctx, roomID)
+}
+
+func (s *Service) ListByRoomPaginated(ctx context.Context, roomID, cursor string, limit int) (*CursorResponse[Device], error) {
+	limit = normalizeLimit(limit)
+	cursorTime, cursorID, err := decodeCursor(cursor)
+	if err != nil {
+		return nil, err
+	}
+	devices, err := s.repo.ListByRoomPaginated(ctx, roomID, cursorTime, cursorID, limit+1)
+	if err != nil {
+		return nil, err
+	}
+	return buildCursorResponse(devices, limit, func(d Device) (time.Time, string) {
+		return d.CreatedAt, d.ID
+	}), nil
 }
 
 func (s *Service) Update(ctx context.Context, id string, req UpdateDeviceRequest) (*Device, error) {

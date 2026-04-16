@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -62,6 +63,32 @@ func (r *Repository) List(ctx context.Context) ([]Device, error) {
 	return devices, nil
 }
 
+func (r *Repository) ListPaginated(ctx context.Context, cursorTime *time.Time, cursorID string, limit int) ([]Device, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, name, type, room_id, state, metadata, firmware_id, online, created_at, updated_at
+		 FROM devices
+		 WHERE ($1::timestamptz IS NULL
+		        OR created_at < $1
+		        OR (created_at = $1 AND id::text < $2))
+		 ORDER BY created_at DESC, id::text DESC
+		 LIMIT $3`, cursorTime, cursorID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list devices paginated: %w", err)
+	}
+	defer rows.Close()
+
+	var devices []Device
+	for rows.Next() {
+		var d Device
+		if err := rows.Scan(&d.ID, &d.Name, &d.Type, &d.RoomID, &d.State, &d.Metadata, &d.FirmwareID, &d.Online, &d.CreatedAt, &d.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan device: %w", err)
+		}
+		devices = append(devices, d)
+	}
+	return devices, nil
+}
+
 func (r *Repository) ListByRoom(ctx context.Context, roomID string) ([]Device, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT id, name, type, room_id, state, metadata, firmware_id, online, created_at, updated_at
@@ -69,6 +96,33 @@ func (r *Repository) ListByRoom(ctx context.Context, roomID string) ([]Device, e
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list devices by room: %w", err)
+	}
+	defer rows.Close()
+
+	var devices []Device
+	for rows.Next() {
+		var d Device
+		if err := rows.Scan(&d.ID, &d.Name, &d.Type, &d.RoomID, &d.State, &d.Metadata, &d.FirmwareID, &d.Online, &d.CreatedAt, &d.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan device: %w", err)
+		}
+		devices = append(devices, d)
+	}
+	return devices, nil
+}
+
+func (r *Repository) ListByRoomPaginated(ctx context.Context, roomID string, cursorTime *time.Time, cursorID string, limit int) ([]Device, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, name, type, room_id, state, metadata, firmware_id, online, created_at, updated_at
+		 FROM devices
+		 WHERE room_id = $1
+		   AND ($2::timestamptz IS NULL
+		        OR created_at < $2
+		        OR (created_at = $2 AND id::text < $3))
+		 ORDER BY created_at DESC, id::text DESC
+		 LIMIT $4`, roomID, cursorTime, cursorID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list devices by room paginated: %w", err)
 	}
 	defer rows.Close()
 
