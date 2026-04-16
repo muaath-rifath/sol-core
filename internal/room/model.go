@@ -2,6 +2,12 @@ package room
 
 import "time"
 
+type CursorResponse[T any] struct {
+	Data       []T     `json:"data"`
+	NextCursor *string `json:"next_cursor"`
+	HasMore    bool    `json:"has_more"`
+}
+
 type Room struct {
 	ID        string         `json:"id"`
 	HomeID    string         `json:"home_id"`
