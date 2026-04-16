@@ -56,6 +56,12 @@ services:
       # ForwardAuth middleware — validates Bearer token via Keycloak userinfo
       - "traefik.http.middlewares.sol-auth.forwardauth.address=${OIDC_ISSUER}/protocol/openid-connect/userinfo"
       - "traefik.http.middlewares.sol-auth.forwardauth.authRequestHeaders=Authorization"
+      # Public invitation endpoints — no auth (token is the secret)
+      - "traefik.http.routers.sol-public.rule=Host(`${API_DOMAIN}`) && PathPrefix(`/api/v1/invitations/`)"
+      - "traefik.http.routers.sol-public.entrypoints=websecure"
+      - "traefik.http.routers.sol-public.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sol-public.priority=200"
+      - "traefik.http.routers.sol-public.service=sol-svc"
       # Health check — no auth
       - "traefik.http.routers.sol-health.rule=Host(`${API_DOMAIN}`) && Path(`/healthz`)"
       - "traefik.http.routers.sol-health.entrypoints=websecure"
