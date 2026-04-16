@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 )
@@ -40,12 +42,34 @@ func (s *Store) Upload(ctx context.Context, objectName string, reader io.Reader,
 	return nil
 }
 
+// UploadVersioned stores a file at key "{templateID}/{version}/{fileType}" and returns the key.
+func (s *Store) UploadVersioned(ctx context.Context, templateID, version, fileType string, reader io.Reader, size int64) (string, error) {
+	key := fmt.Sprintf("%s/%s/%s", templateID, version, fileType)
+	_, err := s.client.PutObject(ctx, s.bucket, key, reader, size, minio.PutObjectOptions{
+		ContentType: "application/octet-stream",
+	})
+	if err != nil {
+		return "", fmt.Errorf("upload versioned firmware (%s): %w", key, err)
+	}
+	return key, nil
+}
+
 func (s *Store) Download(ctx context.Context, objectName string) (io.ReadCloser, error) {
 	obj, err := s.client.GetObject(ctx, s.bucket, objectName, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("download firmware: %w", err)
 	}
 	return obj, nil
+}
+
+// PresignedURL returns a time-limited pre-signed GET URL for the given object.
+// ESP32 OTA downloads use this — no Keycloak token required.
+func (s *Store) PresignedURL(ctx context.Context, objectName string, expiry time.Duration) (string, error) {
+	u, err := s.client.PresignedGetObject(ctx, s.bucket, objectName, expiry, url.Values{})
+	if err != nil {
+		return "", fmt.Errorf("presign firmware url: %w", err)
+	}
+	return u.String(), nil
 }
 
 func (s *Store) List(ctx context.Context) ([]minio.ObjectInfo, error) {

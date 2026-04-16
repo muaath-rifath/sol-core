@@ -47,6 +47,10 @@ func (s *Service) List(ctx context.Context) ([]Device, error) {
 	return s.repo.List(ctx)
 }
 
+func (s *Service) ListByRoom(ctx context.Context, roomID string) ([]Device, error) {
+	return s.repo.ListByRoom(ctx, roomID)
+}
+
 func (s *Service) Update(ctx context.Context, id string, req UpdateDeviceRequest) (*Device, error) {
 	d, err := s.repo.GetByID(ctx, id)
 	if err != nil {
@@ -77,6 +81,15 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 func (s *Service) SendCommand(ctx context.Context, cmd Command) error {
 	topic := fmt.Sprintf("sol/devices/%s/command", cmd.DeviceID)
 	return s.mqtt.Publish(topic, cmd)
+}
+
+func (s *Service) TriggerOTA(ctx context.Context, deviceID string, url string) error {
+	topic := fmt.Sprintf("sol/devices/%s/command", deviceID)
+	return s.mqtt.Publish(topic, Command{
+		DeviceID: deviceID,
+		Action:   "ota_update",
+		Params:   map[string]any{"url": url},
+	})
 }
 
 func (s *Service) HandleStateUpdate(ctx context.Context, deviceID string, state map[string]any) error {

@@ -18,6 +18,7 @@ import (
 	"github.com/muaathrifath/sol-core/internal/home"
 	"github.com/muaathrifath/sol-core/internal/mqtt"
 	"github.com/muaathrifath/sol-core/internal/platform"
+	"github.com/muaathrifath/sol-core/internal/room"
 	"github.com/muaathrifath/sol-core/internal/user"
 	"github.com/muaathrifath/sol-core/internal/ws"
 )
@@ -98,14 +99,19 @@ func main() {
 	// Domain services
 	deviceRepo := device.NewRepository(pgPool)
 	deviceSvc := device.NewService(deviceRepo, mqttClient, hub)
-	deviceHandler := device.NewHandler(deviceSvc)
+
+	firmwareStore := firmware.NewStore(minioClient, cfg.MinioBucket)
+	firmwareVersionRepo := firmware.NewVersionRepository(pgPool)
+	firmwareHandler := firmware.NewHandler(firmwareStore, firmwareVersionRepo)
+	deviceHandler := device.NewHandler(deviceSvc, firmwareStore, firmwareVersionRepo)
+
+	roomRepo := room.NewRepository(pgPool)
+	roomSvc := room.NewService(roomRepo)
+	roomHandler := room.NewHandler(roomSvc)
 
 	automationRepo := automation.NewRepository(pgPool)
 	automationSvc := automation.NewService(automationRepo, deviceSvc, aiClient)
 	automationHandler := automation.NewHandler(automationSvc)
-
-	firmwareStore := firmware.NewStore(minioClient, cfg.MinioBucket)
-	firmwareHandler := firmware.NewHandler(firmwareStore)
 
 	// MQTT message handler
 	mqttHandler := mqtt.NewHandler(deviceSvc, hub)
@@ -143,6 +149,17 @@ func main() {
 	mux.Handle("PUT /api/v1/devices/{id}", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Update)))
 	mux.Handle("DELETE /api/v1/devices/{id}", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Delete)))
 	mux.Handle("POST /api/v1/devices/{id}/command", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Command)))
+	mux.Handle("GET /api/v1/homes/{homeId}/rooms/{roomId}/devices", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.ListByRoom)))
+	mux.Handle("POST /api/v1/homes/{homeId}/rooms/{roomId}/devices", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.CreateInRoom)))
+	mux.Handle("POST /api/v1/homes/{homeId}/rooms/{roomId}/devices/{id}/command", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Command)))
+	mux.Handle("POST /api/v1/homes/{homeId}/rooms/{roomId}/devices/{id}/ota", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.OTA)))
+
+	// Room routes
+	mux.Handle("GET /api/v1/homes/{homeId}/rooms", authMiddleware.Wrap(http.HandlerFunc(roomHandler.List)))
+	mux.Handle("POST /api/v1/homes/{homeId}/rooms", authMiddleware.Wrap(http.HandlerFunc(roomHandler.Create)))
+	mux.Handle("GET /api/v1/homes/{homeId}/rooms/{roomId}", authMiddleware.Wrap(http.HandlerFunc(roomHandler.Get)))
+	mux.Handle("PUT /api/v1/homes/{homeId}/rooms/{roomId}", authMiddleware.Wrap(http.HandlerFunc(roomHandler.Update)))
+	mux.Handle("DELETE /api/v1/homes/{homeId}/rooms/{roomId}", authMiddleware.Wrap(http.HandlerFunc(roomHandler.Delete)))
 
 	// Automation routes
 	mux.Handle("GET /api/v1/automations", authMiddleware.Wrap(http.HandlerFunc(automationHandler.List)))
@@ -154,7 +171,8 @@ func main() {
 	// Firmware routes
 	mux.Handle("GET /api/v1/firmware", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.List)))
 	mux.Handle("POST /api/v1/firmware/upload", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.Upload)))
-	mux.Handle("GET /api/v1/firmware/{id}/download", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.Download)))
+	mux.Handle("GET /api/v1/firmware/{id}/download", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadByVersionID)))
+	mux.Handle("GET /api/v1/firmware/{id}/presigned-url", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.PresignedURL)))
 
 	// WebSocket
 	mux.Handle("/ws", authMiddleware.Wrap(http.HandlerFunc(hub.HandleWebSocket)))

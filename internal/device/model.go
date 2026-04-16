@@ -32,6 +32,11 @@ type Command struct {
 	Params   map[string]any `json:"params,omitempty"`
 }
 
+type OTARequest struct {
+	FirmwareVersionID string `json:"firmware_version_id"`
+	URL               string `json:"url,omitempty"`
+}
+
 type TelemetryPoint struct {
 	DeviceID  string         `json:"device_id"`
 	Timestamp time.Time      `json:"timestamp"`

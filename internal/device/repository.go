@@ -2,8 +2,10 @@ package device
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -58,6 +60,53 @@ func (r *Repository) List(ctx context.Context) ([]Device, error) {
 		devices = append(devices, d)
 	}
 	return devices, nil
+}
+
+func (r *Repository) ListByRoom(ctx context.Context, roomID string) ([]Device, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, name, type, room_id, state, metadata, firmware_id, online, created_at, updated_at
+		 FROM devices WHERE room_id = $1 ORDER BY created_at DESC`, roomID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list devices by room: %w", err)
+	}
+	defer rows.Close()
+
+	var devices []Device
+	for rows.Next() {
+		var d Device
+		if err := rows.Scan(&d.ID, &d.Name, &d.Type, &d.RoomID, &d.State, &d.Metadata, &d.FirmwareID, &d.Online, &d.CreatedAt, &d.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan device: %w", err)
+		}
+		devices = append(devices, d)
+	}
+	return devices, nil
+}
+
+func (r *Repository) RoomBelongsToHome(ctx context.Context, roomID, homeID string) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS(SELECT 1 FROM rooms WHERE id = $1 AND home_id = $2)`, roomID, homeID,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check room home membership: %w", err)
+	}
+	return exists, nil
+}
+
+func (r *Repository) GetByIDInRoom(ctx context.Context, id, roomID string) (*Device, error) {
+	var d Device
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, name, type, room_id, state, metadata, firmware_id, online, created_at, updated_at
+		 FROM devices WHERE id = $1 AND room_id = $2`, id, roomID,
+	).Scan(&d.ID, &d.Name, &d.Type, &d.RoomID, &d.State, &d.Metadata, &d.FirmwareID, &d.Online, &d.CreatedAt, &d.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("get device in room: %w", err)
+	}
+	return &d, nil
 }
 
 func (r *Repository) Update(ctx context.Context, d *Device) error {
