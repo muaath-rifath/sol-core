@@ -39,8 +39,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      vernemq:
-        condition: service_started
       minio:
         condition: service_started
     networks:
@@ -117,18 +115,6 @@ services:
       retries: 10
     mem_limit: 320m
     mem_reservation: 128m
-    networks:
-      - sol-net
-
-  vernemq:
-    image: vernemq/vernemq:latest
-    container_name: sol-vernemq
-    restart: unless-stopped
-    environment:
-      DOCKER_VERNEMQ_ACCEPT_EULA: "yes"
-      DOCKER_VERNEMQ_ALLOW_ANONYMOUS: "on"
-    ports:
-      - "1883:1883"
     networks:
       - sol-net
 

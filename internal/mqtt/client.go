@@ -15,12 +15,16 @@ type Client struct {
 	messageHandler MessageHandler
 }
 
-func NewClient(brokerURL, clientID string) (*Client, error) {
+func NewClient(brokerURL, clientID, username, password string) (*Client, error) {
 	opts := pahomqtt.NewClientOptions().
 		AddBroker(brokerURL).
 		SetClientID(clientID).
 		SetAutoReconnect(true).
 		SetCleanSession(false)
+
+	if username != "" {
+		opts.SetUsername(username).SetPassword(password)
+	}
 
 	c := &Client{}
 

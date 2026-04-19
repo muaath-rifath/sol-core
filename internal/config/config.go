@@ -15,8 +15,10 @@ type Config struct {
 	RedisURL string
 
 	// MQTT
-	MQTTBrokerURL string
-	MQTTClientID  string
+	MQTTBrokerURL  string
+	MQTTClientID   string
+	MQTTUsername   string
+	MQTTPassword   string
 
 	// MinIO
 	MinioEndpoint  string
@@ -46,8 +48,10 @@ func Load() (*Config, error) {
 		Port:          envOrDefault("PORT", "8080"),
 		DatabaseURL:   envOrDefault("DATABASE_URL", "postgres://sol:sol@localhost:5432/sol?sslmode=disable"),
 		RedisURL:      envOrDefault("REDIS_URL", "redis://localhost:6379/0"),
-		MQTTBrokerURL: envOrDefault("MQTT_BROKER_URL", "tcp://localhost:1883"),
+		MQTTBrokerURL: envOrDefault("MQTT_BROKER_URL", "ssl://mqtt.sol.muaathrifath.me:8883"),
 		MQTTClientID:  envOrDefault("MQTT_CLIENT_ID", "sol-backend"),
+		MQTTUsername:  os.Getenv("MQTT_USERNAME"),
+		MQTTPassword:  os.Getenv("MQTT_PASSWORD"),
 		MinioEndpoint: envOrDefault("MINIO_ENDPOINT", "localhost:9000"),
 		MinioAccessKey: envOrDefault("MINIO_ACCESS_KEY", "minioadmin"),
 		MinioSecretKey: envOrDefault("MINIO_SECRET_KEY", "minioadmin"),
