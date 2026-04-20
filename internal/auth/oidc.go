@@ -3,22 +3,25 @@ package auth
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/zitadel/zitadel-go/v3/pkg/authorization"
+	"github.com/zitadel/zitadel-go/v3/pkg/authorization/oauth"
+	"github.com/zitadel/zitadel-go/v3/pkg/zitadel"
 )
 
 type OIDCVerifier struct {
-	verifier *oidc.IDTokenVerifier
+	authZ *authorization.Authorizer[*oauth.IntrospectionContext]
 }
 
-func NewOIDCVerifier(ctx context.Context, issuer, clientID string) (*OIDCVerifier, error) {
-	provider, err := oidc.NewProvider(ctx, issuer)
-	if err != nil {
-		return nil, fmt.Errorf("oidc provider: %w", err)
-	}
+func NewOIDCVerifier(ctx context.Context, issuer, keyFilePath string) (*OIDCVerifier, error) {
+	domain := strings.TrimPrefix(strings.TrimPrefix(issuer, "https://"), "http://")
 
-	verifier := provider.Verifier(&oidc.Config{ClientID: clientID})
-	return &OIDCVerifier{verifier: verifier}, nil
+	authZ, err := authorization.New(ctx, zitadel.New(domain), oauth.DefaultAuthorization(keyFilePath))
+	if err != nil {
+		return nil, fmt.Errorf("zitadel auth init: %w", err)
+	}
+	return &OIDCVerifier{authZ: authZ}, nil
 }
 
 type Claims struct {
@@ -27,17 +30,20 @@ type Claims struct {
 	Name    string
 }
 
-func (v *OIDCVerifier) Verify(ctx context.Context, rawToken string) (*Claims, error) {
-	idToken, err := v.verifier.Verify(ctx, rawToken)
+func (v *OIDCVerifier) Verify(ctx context.Context, token string) (*Claims, error) {
+	introspection, err := v.authZ.CheckAuthorization(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("token verification: %w", err)
 	}
 
-	var claims Claims
-	if err := idToken.Claims(&claims); err != nil {
-		return nil, fmt.Errorf("claims extraction: %w", err)
+	name := introspection.Name
+	if name == "" {
+		name = introspection.PreferredUsername
 	}
-	claims.Subject = idToken.Subject
 
-	return &claims, nil
+	return &Claims{
+		Subject: introspection.UserID(),
+		Email:   introspection.Email,
+		Name:    name,
+	}, nil
 }

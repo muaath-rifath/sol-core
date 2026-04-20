@@ -15,10 +15,10 @@ type Config struct {
 	RedisURL string
 
 	// MQTT
-	MQTTBrokerURL  string
-	MQTTClientID   string
-	MQTTUsername   string
-	MQTTPassword   string
+	MQTTBrokerURL string
+	MQTTClientID  string
+	MQTTUsername  string
+	MQTTPassword  string
 
 	// MinIO
 	MinioEndpoint  string
@@ -28,8 +28,8 @@ type Config struct {
 	MinioBucket    string
 
 	// OIDC (Zitadel)
-	OIDCIssuer   string
-	OIDCClientID string
+	OIDCIssuer     string
+	ZitadelKeyFile string
 
 	// AI Service
 	AIServiceURL string
@@ -45,22 +45,22 @@ type Config struct {
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:          envOrDefault("PORT", "8080"),
-		DatabaseURL:   envOrDefault("DATABASE_URL", "postgres://sol:sol@localhost:5432/sol?sslmode=disable"),
-		RedisURL:      envOrDefault("REDIS_URL", "redis://localhost:6379/0"),
-		MQTTBrokerURL: envOrDefault("MQTT_BROKER_URL", "ssl://mqtt.sol.muaathrifath.me:8883"),
-		MQTTClientID:  envOrDefault("MQTT_CLIENT_ID", "sol-backend"),
-		MQTTUsername:  os.Getenv("MQTT_USERNAME"),
-		MQTTPassword:  os.Getenv("MQTT_PASSWORD"),
-		MinioEndpoint: envOrDefault("MINIO_ENDPOINT", "localhost:9000"),
+		Port:           envOrDefault("PORT", "8080"),
+		DatabaseURL:    envOrDefault("DATABASE_URL", "postgres://sol:sol@localhost:5432/sol?sslmode=disable"),
+		RedisURL:       envOrDefault("REDIS_URL", "redis://localhost:6379/0"),
+		MQTTBrokerURL:  envOrDefault("MQTT_BROKER_URL", "ssl://mqtt.sol.muaathrifath.me:8883"),
+		MQTTClientID:   envOrDefault("MQTT_CLIENT_ID", "sol-backend"),
+		MQTTUsername:   os.Getenv("MQTT_USERNAME"),
+		MQTTPassword:   os.Getenv("MQTT_PASSWORD"),
+		MinioEndpoint:  envOrDefault("MINIO_ENDPOINT", "localhost:9000"),
 		MinioAccessKey: envOrDefault("MINIO_ACCESS_KEY", "minioadmin"),
 		MinioSecretKey: envOrDefault("MINIO_SECRET_KEY", "minioadmin"),
-		MinioUseSSL:   os.Getenv("MINIO_USE_SSL") == "true",
-		MinioBucket:   envOrDefault("MINIO_BUCKET", "firmware"),
-		OIDCIssuer:       os.Getenv("OIDC_ISSUER"),
-		OIDCClientID:     os.Getenv("OIDC_CLIENT_ID"),
-		AIServiceURL:     envOrDefault("AI_SERVICE_URL", "http://localhost:8000"),
-		BrevoAPIKey:      os.Getenv("BREVO_API_KEY"),
+		MinioUseSSL:    os.Getenv("MINIO_USE_SSL") == "true",
+		MinioBucket:    envOrDefault("MINIO_BUCKET", "firmware"),
+		OIDCIssuer:     os.Getenv("OIDC_ISSUER"),
+		ZitadelKeyFile: os.Getenv("ZITADEL_INTROSPECTION_KEY_FILE"),
+		AIServiceURL:   envOrDefault("AI_SERVICE_URL", "http://localhost:8000"),
+		BrevoAPIKey:    os.Getenv("BREVO_API_KEY"),
 		BrevoSenderEmail: envOrDefault("BREVO_SENDER_EMAIL", "noreply@sol.app"),
 		BrevoSenderName:  envOrDefault("BREVO_SENDER_NAME", "Sol"),
 		FrontendURL:      envOrDefault("FRONTEND_URL", "http://localhost:3000"),
@@ -69,8 +69,8 @@ func Load() (*Config, error) {
 	if cfg.OIDCIssuer == "" {
 		return nil, fmt.Errorf("OIDC_ISSUER is required")
 	}
-	if cfg.OIDCClientID == "" {
-		return nil, fmt.Errorf("OIDC_CLIENT_ID is required")
+	if cfg.ZitadelKeyFile == "" {
+		return nil, fmt.Errorf("ZITADEL_INTROSPECTION_KEY_FILE is required")
 	}
 
 	return cfg, nil
