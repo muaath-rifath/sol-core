@@ -30,6 +30,9 @@ go.work.sum
 # Traefik SSL certificates — never commit
 traefik/acme.json
 
+# Zitadel private key files — never commit
+*.json
+
 # Editor/IDE
 # .idea/
 # .vscode/
