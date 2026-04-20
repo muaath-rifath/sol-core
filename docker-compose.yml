@@ -46,11 +46,14 @@ services:
       - sol-net
     labels:
       - "traefik.enable=true"
-      # Main API routes
+      # Main API routes — ForwardAuth validates Bearer token via Zitadel
       - "traefik.http.routers.sol.rule=Host(`${API_DOMAIN}`)"
       - "traefik.http.routers.sol.entrypoints=websecure"
       - "traefik.http.routers.sol.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sol.middlewares=sol-auth"
       - "traefik.http.routers.sol.service=sol-svc"
+      - "traefik.http.middlewares.sol-auth.forwardauth.address=${OIDC_ISSUER}/oidc/v1/userinfo"
+      - "traefik.http.middlewares.sol-auth.forwardauth.authRequestHeaders=Authorization"
       # Public invitation endpoints — no auth (token is the secret)
       - "traefik.http.routers.sol-public.rule=Host(`${API_DOMAIN}`) && PathPrefix(`/api/v1/invitations/`)"
       - "traefik.http.routers.sol-public.entrypoints=websecure"

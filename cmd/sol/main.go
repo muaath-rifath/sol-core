@@ -73,11 +73,7 @@ func main() {
 	homeHandler := home.NewHandler(homeSvc)
 
 	// Auth
-	oidcVerifier, err := auth.NewOIDCVerifier(ctx, cfg.OIDCIssuer, cfg.ZitadelKeyFile)
-	if err != nil {
-		slog.Error("failed to init oidc verifier", "error", err)
-		os.Exit(1)
-	}
+	oidcVerifier := auth.NewOIDCVerifier()
 	// No implicit home creation on first login.
 	authMiddleware := auth.NewMiddleware(oidcVerifier, userRepo, nil)
 

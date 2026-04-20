@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 )
 
@@ -26,10 +25,6 @@ type Config struct {
 	MinioSecretKey string
 	MinioUseSSL    bool
 	MinioBucket    string
-
-	// OIDC (Zitadel)
-	OIDCIssuer     string
-	ZitadelKeyFile string
 
 	// AI Service
 	AIServiceURL string
@@ -57,20 +52,11 @@ func Load() (*Config, error) {
 		MinioSecretKey: envOrDefault("MINIO_SECRET_KEY", "minioadmin"),
 		MinioUseSSL:    os.Getenv("MINIO_USE_SSL") == "true",
 		MinioBucket:    envOrDefault("MINIO_BUCKET", "firmware"),
-		OIDCIssuer:     os.Getenv("OIDC_ISSUER"),
-		ZitadelKeyFile: os.Getenv("ZITADEL_INTROSPECTION_KEY_FILE"),
 		AIServiceURL:   envOrDefault("AI_SERVICE_URL", "http://localhost:8000"),
 		BrevoAPIKey:    os.Getenv("BREVO_API_KEY"),
 		BrevoSenderEmail: envOrDefault("BREVO_SENDER_EMAIL", "noreply@sol.app"),
 		BrevoSenderName:  envOrDefault("BREVO_SENDER_NAME", "Sol"),
 		FrontendURL:      envOrDefault("FRONTEND_URL", "http://localhost:3000"),
-	}
-
-	if cfg.OIDCIssuer == "" {
-		return nil, fmt.Errorf("OIDC_ISSUER is required")
-	}
-	if cfg.ZitadelKeyFile == "" {
-		return nil, fmt.Errorf("ZITADEL_INTROSPECTION_KEY_FILE is required")
 	}
 
 	return cfg, nil
