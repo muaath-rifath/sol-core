@@ -1,188 +1,1602 @@
 openapi: "3.1.0"
 info:
   title: Sol Home Automation API
-  version: "0.1.0"
+  version: "0.2.0"
   description: Backend API for the Sol home automation system.
 servers:
   - url: http://localhost:8080
     description: Local development
+tags:
+  - name: Health
+  - name: Users
+  - name: Homes
+  - name: Members
+  - name: Invitations
+  - name: Rooms
+  - name: Devices
+  - name: Automations
+  - name: Firmware
+  - name: WebSocket
 paths:
   /healthz:
     get:
+      tags: [Health]
       summary: Health check
+      operationId: healthz
       responses:
         "200":
-          description: OK
-  /api/v1/devices:
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/v1/me:
     get:
-      summary: List all devices
+      tags: [Users]
+      summary: Get current authenticated user
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/homes:
+    get:
+      tags: [Homes]
+      summary: List homes for current user
+      operationId: listHomes
       security:
         - bearerAuth: []
       parameters:
-        - name: cursor
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: limit
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
       responses:
         "200":
-          description: Cursor-paginated list of devices
+          description: Cursor-paginated homes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeCursorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
     post:
-      summary: Register a new device
+      tags: [Homes]
+      summary: Create home
+      operationId: createHome
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHomeRequest"
+      responses:
+        "201":
+          description: Home created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Home"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/homes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/HomeId"
+    get:
+      tags: [Homes]
+      summary: Get home by ID
+      operationId: getHome
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Home details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Home"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Homes]
+      summary: Update home
+      operationId: updateHome
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHomeRequest"
+      responses:
+        "200":
+          description: Home updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Home"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Homes]
+      summary: Delete home
+      operationId: deleteHome
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Home deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/homes/{id}/transfer-ownership:
+    parameters:
+      - $ref: "#/components/parameters/HomeId"
+    post:
+      tags: [Homes]
+      summary: Transfer home ownership
+      operationId: transferHomeOwnership
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferOwnershipRequest"
+      responses:
+        "204":
+          description: Ownership transferred
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/homes/{id}/members:
+    parameters:
+      - $ref: "#/components/parameters/HomeId"
+    get:
+      tags: [Members]
+      summary: List home members
+      operationId: listHomeMembers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Cursor-paginated members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeMemberCursorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Members]
+      summary: Add a home member
+      operationId: addHomeMember
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddMemberRequest"
+      responses:
+        "201":
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeMember"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/homes/{id}/members/{userId}/role:
+    parameters:
+      - $ref: "#/components/parameters/HomeId"
+      - $ref: "#/components/parameters/UserId"
+    patch:
+      tags: [Members]
+      summary: Update member role
+      operationId: updateMemberRole
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberRoleRequest"
+      responses:
+        "204":
+          description: Role updated
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/homes/{id}/members/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/HomeId"
+      - $ref: "#/components/parameters/UserId"
+    delete:
+      tags: [Members]
+      summary: Remove member from home
+      operationId: removeHomeMember
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Member removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/homes/{id}/invitations:
+    parameters:
+      - $ref: "#/components/parameters/HomeId"
+    get:
+      tags: [Invitations]
+      summary: List invitations for home
+      operationId: listHomeInvitations
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/InvitationStatus"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Cursor-paginated invitations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeInvitationCursorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Invitations]
+      summary: Invite user by email
+      operationId: inviteByEmail
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteByEmailRequest"
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HomeInvitation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/homes/{id}/invitations/{invId}:
+    parameters:
+      - $ref: "#/components/parameters/HomeId"
+      - $ref: "#/components/parameters/InvitationId"
+    delete:
+      tags: [Invitations]
+      summary: Cancel invitation
+      operationId: cancelInvitation
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Invitation cancelled
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/invitations/{token}:
+    parameters:
+      - $ref: "#/components/parameters/InvitationToken"
+    get:
+      tags: [Invitations]
+      summary: Get invitation by token (public)
+      operationId: getInvitationPublic
+      responses:
+        "200":
+          description: Invitation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/invitations/{token}/accept:
+    parameters:
+      - $ref: "#/components/parameters/InvitationToken"
+    post:
+      tags: [Invitations]
+      summary: Accept invitation
+      operationId: acceptInvitation
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Home joined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Home"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/invitations/{token}/decline:
+    parameters:
+      - $ref: "#/components/parameters/InvitationToken"
+    post:
+      tags: [Invitations]
+      summary: Decline invitation (public)
+      operationId: declineInvitationPublic
+      responses:
+        "204":
+          description: Invitation declined
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/homes/{homeId}/rooms:
+    parameters:
+      - $ref: "#/components/parameters/HomeIdAlt"
+    get:
+      tags: [Rooms]
+      summary: List rooms in home
+      operationId: listRooms
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Cursor-paginated rooms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoomCursorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Rooms]
+      summary: Create room in home
+      operationId: createRoom
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoomRequest"
+      responses:
+        "201":
+          description: Room created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/homes/{homeId}/rooms/{roomId}:
+    parameters:
+      - $ref: "#/components/parameters/HomeIdAlt"
+      - $ref: "#/components/parameters/RoomId"
+    get:
+      tags: [Rooms]
+      summary: Get room by ID
+      operationId: getRoom
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Room details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Rooms]
+      summary: Update room
+      operationId: updateRoom
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoomRequest"
+      responses:
+        "200":
+          description: Room updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Rooms]
+      summary: Delete room
+      operationId: deleteRoom
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Room deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/homes/{homeId}/rooms/{roomId}/devices:
+    parameters:
+      - $ref: "#/components/parameters/HomeIdAlt"
+      - $ref: "#/components/parameters/RoomId"
+    get:
+      tags: [Devices]
+      summary: List devices in room
+      operationId: listRoomDevices
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Cursor-paginated room devices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceCursorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Devices]
+      summary: Create device in room
+      operationId: createRoomDevice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDeviceInRoomRequest"
       responses:
         "201":
           description: Device created
-  /api/v1/devices/{id}:
-    get:
-      summary: Get device by ID
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Device details
-    put:
-      summary: Update device
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Device updated
-    delete:
-      summary: Delete device
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        "204":
-          description: Device deleted
-  /api/v1/devices/{id}/command:
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/homes/{homeId}/rooms/{roomId}/devices/{id}/command:
+    parameters:
+      - $ref: "#/components/parameters/HomeIdAlt"
+      - $ref: "#/components/parameters/RoomId"
+      - $ref: "#/components/parameters/DeviceId"
     post:
-      summary: Send command to device
+      tags: [Devices]
+      summary: Send command to room device
+      operationId: commandRoomDevice
       security:
         - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceCommandRequest"
       responses:
         "202":
           description: Command accepted
-  /api/v1/automations:
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/homes/{homeId}/rooms/{roomId}/devices/{id}/ota:
+    parameters:
+      - $ref: "#/components/parameters/HomeIdAlt"
+      - $ref: "#/components/parameters/RoomId"
+      - $ref: "#/components/parameters/DeviceId"
+    post:
+      tags: [Devices]
+      summary: Trigger OTA update for room device
+      operationId: otaRoomDevice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OTARequest"
+      responses:
+        "200":
+          description: OTA update initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/devices:
     get:
-      summary: List automation rules
+      tags: [Devices]
+      summary: List all devices
+      operationId: listDevices
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Cursor-paginated list of devices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceCursorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Devices]
+      summary: Register a new device
+      operationId: createDevice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDeviceRequest"
+      responses:
+        "201":
+          description: Device created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/devices/{id}:
+    parameters:
+      - $ref: "#/components/parameters/DeviceId"
+    get:
+      tags: [Devices]
+      summary: Get device by ID
+      operationId: getDevice
       security:
         - bearerAuth: []
       responses:
         "200":
-          description: List of rules
-    post:
-      summary: Create automation rule
+          description: Device details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Devices]
+      summary: Update device
+      operationId: updateDevice
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeviceRequest"
+      responses:
+        "200":
+          description: Device updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Devices]
+      summary: Delete device
+      operationId: deleteDevice
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Device deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/devices/{id}/command:
+    parameters:
+      - $ref: "#/components/parameters/DeviceId"
+    post:
+      tags: [Devices]
+      summary: Send command to device
+      operationId: commandDevice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceCommandRequest"
+      responses:
+        "202":
+          description: Command accepted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/automations:
+    get:
+      tags: [Automations]
+      summary: List automation rules
+      operationId: listAutomations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of automation rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Automation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Automations]
+      summary: Create automation rule
+      operationId: createAutomation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAutomationRequest"
       responses:
         "201":
           description: Rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Automation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/v1/automations/{id}:
+    parameters:
+      - $ref: "#/components/parameters/AutomationId"
     get:
+      tags: [Automations]
       summary: Get automation rule
+      operationId: getAutomation
       security:
         - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         "200":
           description: Rule details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Automation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     put:
+      tags: [Automations]
       summary: Update automation rule
+      operationId: updateAutomation
       security:
         - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAutomationRequest"
       responses:
         "200":
           description: Rule updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Automation"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
+      tags: [Automations]
       summary: Delete automation rule
+      operationId: deleteAutomation
       security:
         - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
       responses:
         "204":
           description: Rule deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/v1/firmware:
     get:
-      summary: List firmware files
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: List of firmware files
-  /api/v1/firmware/upload:
-    post:
-      summary: Upload firmware binary
-      security:
-        - bearerAuth: []
-      responses:
-        "201":
-          description: Firmware uploaded
-  /api/v1/firmware/{id}/download:
-    get:
-      summary: Download firmware binary
+      tags: [Firmware]
+      summary: List firmware versions
+      operationId: listFirmware
       security:
         - bearerAuth: []
       parameters:
-        - name: id
-          in: path
-          required: true
+        - name: template_id
+          in: query
+          required: false
           schema:
             type: string
       responses:
         "200":
-          description: Firmware binary
+          description: List of firmware versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FirmwareVersion"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/firmware/upload:
+    post:
+      tags: [Firmware]
+      summary: Upload firmware binary
+      operationId: uploadFirmware
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [firmware, template_id, version, bootloader_key, partition_key, app_key]
+              properties:
+                firmware:
+                  type: string
+                  format: binary
+                template_id:
+                  type: string
+                version:
+                  type: string
+                bootloader_key:
+                  type: string
+                partition_key:
+                  type: string
+                app_key:
+                  type: string
+                source_key:
+                  type: string
+      responses:
+        "201":
+          description: Firmware uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FirmwareVersion"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/firmware/{id}/download:
+    parameters:
+      - $ref: "#/components/parameters/FirmwareId"
+    get:
+      tags: [Firmware]
+      summary: Download firmware binary by version ID
+      operationId: downloadFirmware
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Firmware binary stream
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/firmware/{id}/presigned-url:
+    parameters:
+      - $ref: "#/components/parameters/FirmwareId"
+    get:
+      tags: [Firmware]
+      summary: Get a presigned URL for firmware download
+      operationId: getFirmwarePresignedUrl
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Presigned URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PresignedUrlResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /ws:
+    get:
+      tags: [WebSocket]
+      summary: Open websocket stream
+      description: Upgrades HTTP connection to websocket for real-time events.
+      operationId: openWebSocket
+      security:
+        - bearerAuth: []
+      responses:
+        "101":
+          description: Switching Protocols
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+    HomeId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    HomeIdAlt:
+      name: homeId
+      in: path
+      required: true
+      schema:
+        type: string
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+    InvitationId:
+      name: invId
+      in: path
+      required: true
+      schema:
+        type: string
+    InvitationToken:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+    RoomId:
+      name: roomId
+      in: path
+      required: true
+      schema:
+        type: string
+    DeviceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    AutomationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    FirmwareId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    InvitationStatus:
+      name: status
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/InvitationStatus"
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Missing or invalid Bearer token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Authenticated but not authorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Conflict in current resource state
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    CursorMeta:
+      type: object
+      required: [next_cursor, has_more]
+      properties:
+        next_cursor:
+          type: ["string", "null"]
+        has_more:
+          type: boolean
+
+    User:
+      type: object
+      required: [id, keycloak_id, email, name, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        keycloak_id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MemberRole:
+      type: string
+      enum: [owner, admin, member]
+
+    InvitationStatus:
+      type: string
+      enum: [pending, accepted, declined, expired]
+
+    Home:
+      type: object
+      required: [id, name, owner_id, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        owner_id:
+          type: string
+        my_role:
+          $ref: "#/components/schemas/MemberRole"
+        member_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    HomeCursorResponse:
+      allOf:
+        - $ref: "#/components/schemas/CursorMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/Home"
+
+    CreateHomeRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    UpdateHomeRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    TransferOwnershipRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+
+    HomeMember:
+      type: object
+      required: [home_id, user_id, role, invited_by, joined_at, user_email, user_name]
+      properties:
+        home_id:
+          type: string
+        user_id:
+          type: string
+        role:
+          $ref: "#/components/schemas/MemberRole"
+        invited_by:
+          type: ["string", "null"]
+        joined_at:
+          type: string
+          format: date-time
+        user_email:
+          type: string
+          format: email
+        user_name:
+          type: string
+
+    HomeMemberCursorResponse:
+      allOf:
+        - $ref: "#/components/schemas/CursorMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/HomeMember"
+
+    AddMemberRequest:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+        role:
+          type: string
+          enum: [admin, member]
+
+    UpdateMemberRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [admin, member]
+
+    HomeInvitation:
+      type: object
+      required: [id, home_id, inviter_id, invitee_email, invitee_is_user, status, expires_at, created_at]
+      properties:
+        id:
+          type: string
+        home_id:
+          type: string
+        inviter_id:
+          type: string
+        invitee_email:
+          type: string
+          format: email
+        invitee_is_user:
+          type: boolean
+        token:
+          type: string
+        status:
+          $ref: "#/components/schemas/InvitationStatus"
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    HomeInvitationCursorResponse:
+      allOf:
+        - $ref: "#/components/schemas/CursorMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/HomeInvitation"
+
+    InvitationDetail:
+      type: object
+      required: [id, home_id, home_name, inviter_id, inviter_name, invitee_email, invitee_is_user, status, expires_at, created_at]
+      properties:
+        id:
+          type: string
+        home_id:
+          type: string
+        home_name:
+          type: string
+        inviter_id:
+          type: string
+        inviter_name:
+          type: string
+        invitee_email:
+          type: string
+          format: email
+        invitee_is_user:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/InvitationStatus"
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    InviteByEmailRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    Room:
+      type: object
+      required: [id, home_id, name, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        home_id:
+          type: string
+        name:
+          type: string
+        floor:
+          type: integer
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    RoomCursorResponse:
+      allOf:
+        - $ref: "#/components/schemas/CursorMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/Room"
+
+    CreateRoomRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        floor:
+          type: integer
+
+    UpdateRoomRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        floor:
+          type: integer
+
+    Device:
+      type: object
+      required: [id, name, type, room_id, state, metadata, online, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        room_id:
+          type: string
+        state:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        firmware_id:
+          type: string
+        online:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    DeviceCursorResponse:
+      allOf:
+        - $ref: "#/components/schemas/CursorMeta"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/Device"
+
+    CreateDeviceRequest:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        room_id:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    CreateDeviceInRoomRequest:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    UpdateDeviceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        room_id:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    DeviceCommandRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+        params:
+          type: object
+          additionalProperties: true
+
+    OTARequest:
+      type: object
+      required: [firmware_version_id]
+      properties:
+        firmware_version_id:
+          type: string
+
+    Automation:
+      type: object
+      required: [id, name, trigger, conditions, actions, enabled, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        trigger:
+          type: object
+          additionalProperties: true
+        conditions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        actions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateAutomationRequest:
+      type: object
+      required: [name, trigger, conditions, actions]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        trigger:
+          type: object
+          additionalProperties: true
+        conditions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        actions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    UpdateAutomationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        enabled:
+          type: boolean
+        trigger:
+          type: object
+          additionalProperties: true
+        conditions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        actions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    FirmwareVersion:
+      type: object
+      required: [id, template_id, version, bootloader_key, partition_key, app_key, size_bytes, created_at]
+      properties:
+        id:
+          type: string
+        template_id:
+          type: string
+        version:
+          type: string
+        bootloader_key:
+          type: string
+        partition_key:
+          type: string
+        app_key:
+          type: string
+        source_key:
+          type: string
+        size_bytes:
+          type: ["integer", "null"]
+        created_at:
+          type: string
+          format: date-time
+
+    PresignedUrlResponse:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
