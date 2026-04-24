@@ -19,6 +19,10 @@ type Config struct {
 	MQTTUsername  string
 	MQTTPassword  string
 
+	// Certs (mTLS)
+	CACertPath string
+	CAKeyPath  string
+
 	// MinIO
 	MinioEndpoint  string
 	MinioAccessKey string
@@ -47,6 +51,8 @@ func Load() (*Config, error) {
 		MQTTClientID:   envOrDefault("MQTT_CLIENT_ID", "sol-backend"),
 		MQTTUsername:   os.Getenv("MQTT_USERNAME"),
 		MQTTPassword:   os.Getenv("MQTT_PASSWORD"),
+		CACertPath:     envOrDefault("CA_CERT_PATH", "/opt/sol-core/certs/ca.crt"),
+		CAKeyPath:      envOrDefault("CA_KEY_PATH", "/opt/sol-core/certs/ca.key"),
 		MinioEndpoint:  envOrDefault("MINIO_ENDPOINT", "localhost:9000"),
 		MinioAccessKey: envOrDefault("MINIO_ACCESS_KEY", "minioadmin"),
 		MinioSecretKey: envOrDefault("MINIO_SECRET_KEY", "minioadmin"),
