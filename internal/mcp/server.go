@@ -71,8 +71,8 @@ func (s *Server) registerTools() {
 
 	// Tool: set_appliance_state
 	type SetApplianceStateArgs struct {
-		ApplianceID string `json:"appliance_id" jsonschema:"description=The unique ID (UUID) of the appliance to control"`
-		State       bool   `json:"state" jsonschema:"description=The desired power state (true for ON, false for OFF)"`
+		ApplianceID string `json:"appliance_id"`
+		State       bool   `json:"state"`
 	}
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
