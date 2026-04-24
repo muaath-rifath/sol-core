@@ -187,82 +187,77 @@ static void handle_command_json(const char *json_text)
         return;
     }
 
-    const cJSON *request_id = cJSON_GetObjectItemCaseSensitive(root, "requestId");
-    const cJSON *cmd = cJSON_GetObjectItemCaseSensitive(root, "cmd");
-    const cJSON *args = cJSON_GetObjectItemCaseSensitive(root, "args");
+    const cJSON *request_id_obj = cJSON_GetObjectItemCaseSensitive(root, "requestId");
+    const char *req_id = cJSON_IsString(request_id_obj) ? request_id_obj->valuestring : "internal";
 
-    const char *req_id = cJSON_IsString(request_id) ? request_id->valuestring : NULL;
-    if (!req_id || !cJSON_IsString(cmd)) {
+    const cJSON *action_obj = cJSON_GetObjectItemCaseSensitive(root, "action");
+    const cJSON *params_obj = cJSON_GetObjectItemCaseSensitive(root, "params");
+
+    // Compatibility check for old format: {"cmd": "...", "args": {...}}
+    const cJSON *cmd_obj = cJSON_GetObjectItemCaseSensitive(root, "cmd");
+    const cJSON *args_obj = cJSON_GetObjectItemCaseSensitive(root, "args");
+
+    const char *action = cJSON_IsString(action_obj) ? action_obj->valuestring : (cJSON_IsString(cmd_obj) ? cmd_obj->valuestring : NULL);
+    const cJSON *params = cJSON_IsObject(params_obj) ? params_obj : args_obj;
+
+    if (!action) {
         cJSON_Delete(root);
         return;
     }
 
-    if (strcmp(cmd->valuestring, "set_led_color") == 0) {
-        int r = 0;
-        int g = 0;
-        int b = 0;
-        if (cJSON_IsObject(args)) {
-            const cJSON *jr = cJSON_GetObjectItemCaseSensitive(args, "r");
-            const cJSON *jg = cJSON_GetObjectItemCaseSensitive(args, "g");
-            const cJSON *jb = cJSON_GetObjectItemCaseSensitive(args, "b");
+    if (strcmp(action, "set_led_color") == 0 || strcmp(action, "set_color") == 0) {
+        int r = 0, g = 0, b = 0;
+        if (cJSON_IsObject(params)) {
+            const cJSON *jr = cJSON_GetObjectItemCaseSensitive(params, "r");
+            const cJSON *jg = cJSON_GetObjectItemCaseSensitive(params, "g");
+            const cJSON *jb = cJSON_GetObjectItemCaseSensitive(params, "b");
             if (cJSON_IsNumber(jr)) r = jr->valueint;
             if (cJSON_IsNumber(jg)) g = jg->valueint;
             if (cJSON_IsNumber(jb)) b = jb->valueint;
         }
-
-        if (r < 0) r = 0;
-        if (r > 255) r = 255;
-        if (g < 0) g = 0;
-        if (g > 255) g = 255;
-        if (b < 0) b = 0;
-        if (b > 255) b = 255;
-
+        if (r < 0) r = 0; if (r > 255) r = 255;
+        if (g < 0) g = 0; if (g > 255) g = 255;
+        if (b < 0) b = 0; if (b > 255) b = 255;
         led_set_color((uint8_t)r, (uint8_t)g, (uint8_t)b);
         publish_ack(req_id, true, "LED color set successfully");
-    } else if (strcmp(cmd->valuestring, "turn_led_off") == 0) {
+    } else if (strcmp(action, "turn_led_off") == 0 || strcmp(action, "off") == 0) {
         led_off();
         publish_ack(req_id, true, "LED turned off");
-    } else if (strcmp(cmd->valuestring, "relay_set") == 0) {
+    } else if (strcmp(action, "relay_set") == 0 || strcmp(action, "set") == 0) {
         if (!template_supports_relay()) {
-            publish_ack(req_id, false, "relay_set is not enabled for current template");
+            publish_ack(req_id, false, "relay control not enabled for template");
         } else {
-            const cJSON *channel = cJSON_IsObject(args) ? cJSON_GetObjectItemCaseSensitive(args, "channel") : NULL;
-            const cJSON *on = cJSON_IsObject(args) ? cJSON_GetObjectItemCaseSensitive(args, "on") : NULL;
-            if (!cJSON_IsNumber(channel) || !cJSON_IsBool(on)) {
-                publish_ack(req_id, false, "relay_set requires numeric channel and boolean on");
+            const cJSON *channel_obj = cJSON_GetObjectItemCaseSensitive(params, "channel");
+            const cJSON *power_obj = cJSON_GetObjectItemCaseSensitive(params, "power");
+            // Also check 'on' for old format compatibility
+            if (!cJSON_IsBool(power_obj)) {
+                power_obj = cJSON_GetObjectItemCaseSensitive(params, "on");
+            }
+
+            if (!cJSON_IsNumber(channel_obj) || !cJSON_IsBool(power_obj)) {
+                publish_ack(req_id, false, "invalid relay params (need channel and power/on)");
             } else {
-                int requested = channel->valueint;
-                if (requested < 1 || requested > RUNTIME_RELAY_CHANNELS_MAX) {
-                    publish_ack(req_id, false, "relay channel must be between 1 and 4");
+                int requested = channel_obj->valueint;
+                // Support both 0-based and 1-based channel indexing for robustness
+                uint8_t idx = (requested > 0) ? (uint8_t)(requested - 1) : 0;
+                
+                if (idx >= RUNTIME_RELAY_CHANNELS_MAX || !relay_channel_valid(idx)) {
+                    publish_ack(req_id, false, "invalid or unconfigured relay channel");
+                } else if (relay_write_channel(idx, cJSON_IsTrue(power_obj)) != ESP_OK) {
+                    publish_ack(req_id, false, "failed to toggle relay");
                 } else {
-                    uint8_t idx = (uint8_t)(requested - 1);
-                    if (!relay_channel_valid(idx)) {
-                        publish_ack(req_id, false, "relay channel is not configured");
-                    } else if (relay_write_channel(idx, cJSON_IsTrue(on)) != ESP_OK) {
-                        publish_ack(req_id, false, "failed to write relay GPIO");
-                    } else {
-                        publish_ack(req_id, true, "relay state updated");
-                    }
+                    publish_ack(req_id, true, "relay state updated");
                 }
             }
         }
-    } else if (strcmp(cmd->valuestring, "ota_update") == 0) {
-        const cJSON *url = cJSON_IsObject(args) ? cJSON_GetObjectItemCaseSensitive(args, "url") : NULL;
-        if (!cJSON_IsString(url) || !url->valuestring || strlen(url->valuestring) == 0) {
-            publish_ack(req_id, false, "url argument required");
+    } else if (strcmp(action, "ota_update") == 0) {
+        const cJSON *url_obj = cJSON_GetObjectItemCaseSensitive(params, "url");
+        if (cJSON_IsString(url_obj)) {
+            char *url = strdup(url_obj->valuestring);
+            publish_ack(req_id, true, "OTA update started");
+            xTaskCreate(ota_task, "ota_task", 8192, url, 5, NULL);
         } else {
-            char *url_copy = strdup(url->valuestring);
-            if (!url_copy) {
-                publish_ack(req_id, false, "failed to allocate ota url");
-            } else {
-                BaseType_t ok = xTaskCreate(ota_task, "ota", 8192, url_copy, 5, NULL);
-                if (ok != pdPASS) {
-                    free(url_copy);
-                    publish_ack(req_id, false, "failed to start ota task");
-                } else {
-                    publish_ack(req_id, true, "OTA update started, device will reboot shortly");
-                }
-            }
+            publish_ack(req_id, false, "missing OTA URL");
         }
     } else {
         publish_ack(req_id, false, "unknown command");

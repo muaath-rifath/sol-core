@@ -16,6 +16,7 @@ import (
 	"github.com/muaathrifath/sol-core/internal/device"
 	"github.com/muaathrifath/sol-core/internal/firmware"
 	"github.com/muaathrifath/sol-core/internal/home"
+	"github.com/muaathrifath/sol-core/internal/mcp"
 	"github.com/muaathrifath/sol-core/internal/mqtt"
 	"github.com/muaathrifath/sol-core/internal/platform"
 	"github.com/muaathrifath/sol-core/internal/room"
@@ -116,6 +117,9 @@ func main() {
 	automationSvc := automation.NewService(automationRepo, deviceSvc, aiClient)
 	automationHandler := automation.NewHandler(automationSvc)
 
+	// MCP Server
+	mcpServer := mcp.NewServer(deviceSvc, roomSvc)
+
 	// MQTT message handler
 	mqttHandler := mqtt.NewHandler(deviceSvc, hub)
 	mqttClient.SetMessageHandler(mqttHandler.Handle)
@@ -195,6 +199,9 @@ func main() {
 
 	// WebSocket
 	mux.Handle("/ws", authMiddleware.Wrap(http.HandlerFunc(hub.HandleWebSocket)))
+
+	mux.Handle("GET /api/v1/mcp/sse", mcpServer.Handler())
+	mux.Handle("POST /api/v1/mcp/sse", mcpServer.Handler())
 
 	// Health
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {

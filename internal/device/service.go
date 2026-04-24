@@ -323,6 +323,10 @@ func (s *Service) ListAppliancesByDevice(ctx context.Context, deviceID string) (
 	return s.repo.ListAppliancesByDevice(ctx, deviceID)
 }
 
+func (s *Service) ListAllAppliances(ctx context.Context) ([]Appliance, error) {
+	return s.repo.ListAllAppliances(ctx)
+}
+
 func (s *Service) UpdateAppliance(ctx context.Context, id string, req UpdateApplianceRequest) (*Appliance, error) {
 	a, err := s.repo.GetApplianceByID(ctx, id)
 	if err != nil {
