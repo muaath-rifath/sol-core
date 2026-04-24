@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/muaathrifath/sol-core/internal/mqtt"
+	"github.com/muaathrifath/sol-core/internal/room"
 	"github.com/muaathrifath/sol-core/internal/ws"
 )
 
@@ -67,13 +68,14 @@ func buildCursorResponse[T any](items []T, limit int, cursorFn func(T) (time.Tim
 }
 
 type Service struct {
-	repo *Repository
-	mqtt *mqtt.Client
-	hub  *ws.Hub
+	repo    *Repository
+	roomSvc *room.Service
+	mqtt    *mqtt.Client
+	hub     *ws.Hub
 }
 
-func NewService(repo *Repository, mqttClient *mqtt.Client, hub *ws.Hub) *Service {
-	return &Service{repo: repo, mqtt: mqttClient, hub: hub}
+func NewService(repo *Repository, roomSvc *room.Service, mqttClient *mqtt.Client, hub *ws.Hub) *Service {
+	return &Service{repo: repo, roomSvc: roomSvc, mqtt: mqttClient, hub: hub}
 }
 
 func (s *Service) Create(ctx context.Context, req CreateDeviceRequest) (*Device, error) {
@@ -170,6 +172,18 @@ func (s *Service) SendCommand(ctx context.Context, cmd Command) error {
 }
 
 func (s *Service) TriggerOTA(ctx context.Context, deviceID string, url string) error {
+	d, err := s.repo.GetByID(ctx, deviceID)
+	if err == nil && d.RoomID != "" {
+		_ = s.roomSvc.InsertActivityLog(ctx, &room.ActivityLog{
+			RoomID:      d.RoomID,
+			Timestamp:   time.Now(),
+			Title:       "OTA Firmware Update Triggered",
+			Description: fmt.Sprintf("Triggered via web interface for %s", d.Name),
+			BadgeText:   "Success",
+			BadgeColor:  "bg-tertiary-fixed text-on-tertiary-fixed",
+		})
+	}
+
 	topic := fmt.Sprintf("sol/devices/%s/command", deviceID)
 	return s.mqtt.Publish(topic, Command{
 		DeviceID: deviceID,
@@ -184,8 +198,42 @@ func (s *Service) HandleStateUpdate(ctx context.Context, deviceID string, state 
 		return err
 	}
 
+	onlineStr, ok := state["online"].(bool)
+	isOnline := false
+	if ok && onlineStr {
+		isOnline = true
+	}
+
+	if d.Online != isOnline && d.RoomID != "" {
+		title := "Device lost connection"
+		description := fmt.Sprintf("%s recovered automatically", d.Name)
+		badge := "Recovered"
+		badgeColor := "bg-error-container text-on-error-container"
+
+		if isOnline {
+			title = "Device connected"
+			description = fmt.Sprintf("%s was discovered online", d.Name)
+			badge = "Online"
+			badgeColor = "bg-tertiary-fixed text-on-tertiary-fixed"
+		} else {
+			title = "Device lost connection"
+			description = fmt.Sprintf("%s went offline", d.Name)
+			badge = "Offline"
+			badgeColor = "bg-error-container text-on-error-container"
+		}
+
+		_ = s.roomSvc.InsertActivityLog(ctx, &room.ActivityLog{
+			RoomID:      d.RoomID,
+			Timestamp:   time.Now(),
+			Title:       title,
+			Description: description,
+			BadgeText:   badge,
+			BadgeColor:  badgeColor,
+		})
+	}
+
 	d.State = state
-	d.Online = true
+	d.Online = isOnline
 	d.UpdatedAt = time.Now()
 
 	if err := s.repo.Update(ctx, d); err != nil {

@@ -93,17 +93,17 @@ func main() {
 	aiClient := ai.NewClient(cfg.AIServiceURL)
 
 	// Domain services
+	roomRepo := room.NewRepository(pgPool)
+	roomSvc := room.NewService(roomRepo)
+	roomHandler := room.NewHandler(roomSvc)
+
 	deviceRepo := device.NewRepository(pgPool)
-	deviceSvc := device.NewService(deviceRepo, mqttClient, hub)
+	deviceSvc := device.NewService(deviceRepo, roomSvc, mqttClient, hub)
 
 	firmwareStore := firmware.NewStore(minioClient, cfg.MinioBucket)
 	firmwareVersionRepo := firmware.NewVersionRepository(pgPool)
 	firmwareHandler := firmware.NewHandler(firmwareStore, firmwareVersionRepo)
 	deviceHandler := device.NewHandler(deviceSvc, firmwareStore, firmwareVersionRepo)
-
-	roomRepo := room.NewRepository(pgPool)
-	roomSvc := room.NewService(roomRepo)
-	roomHandler := room.NewHandler(roomSvc)
 
 	automationRepo := automation.NewRepository(pgPool)
 	automationSvc := automation.NewService(automationRepo, deviceSvc, aiClient)
@@ -157,6 +157,7 @@ func main() {
 	mux.Handle("GET /api/v1/homes/{homeId}/rooms/{roomId}", authMiddleware.Wrap(http.HandlerFunc(roomHandler.Get)))
 	mux.Handle("PUT /api/v1/homes/{homeId}/rooms/{roomId}", authMiddleware.Wrap(http.HandlerFunc(roomHandler.Update)))
 	mux.Handle("DELETE /api/v1/homes/{homeId}/rooms/{roomId}", authMiddleware.Wrap(http.HandlerFunc(roomHandler.Delete)))
+	mux.Handle("GET /api/v1/homes/{homeId}/rooms/{roomId}/activity", authMiddleware.Wrap(http.HandlerFunc(roomHandler.ListActivity)))
 
 	// Automation routes
 	mux.Handle("GET /api/v1/automations", authMiddleware.Wrap(http.HandlerFunc(automationHandler.List)))

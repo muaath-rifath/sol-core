@@ -100,3 +100,26 @@ func (s *Service) Update(ctx context.Context, id, homeID string, req UpdateRoomR
 func (s *Service) Delete(ctx context.Context, id, homeID string) error {
 	return s.repo.Delete(ctx, id, homeID)
 }
+
+func (s *Service) InsertActivityLog(ctx context.Context, log *ActivityLog) error {
+	if log.Timestamp.IsZero() {
+		log.Timestamp = time.Now()
+	}
+	return s.repo.InsertActivityLog(ctx, log)
+}
+
+func (s *Service) ListActivityLogs(ctx context.Context, id, homeID string, limit int) ([]ActivityLog, error) {
+	// Let's verify the room belongs to the home before returning its logs.
+	if _, err := s.Get(ctx, id, homeID); err != nil {
+		return nil, err
+	}
+	limit = normalizeLimit(limit)
+	logs, err := s.repo.ListActivityLogs(ctx, id, limit)
+	if err != nil {
+		return nil, err
+	}
+	if logs == nil {
+		logs = []ActivityLog{}
+	}
+	return logs, nil
+}
