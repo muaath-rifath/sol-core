@@ -6,6 +6,8 @@
 #define RUNTIME_WIFI_SSID_MAX_LEN 32
 #define RUNTIME_WIFI_PASSWORD_MAX_LEN 64
 #define RUNTIME_MQTT_URI_MAX_LEN 128
+#define RUNTIME_MQTT_USERNAME_MAX_LEN 64
+#define RUNTIME_MQTT_PASSWORD_MAX_LEN 64
 #define RUNTIME_DEVICE_ID_MAX_LEN 64
 #define RUNTIME_TEMPLATE_ID_MAX_LEN 32
 
@@ -22,6 +24,8 @@ typedef enum {
 const char *runtime_get_wifi_ssid(void);
 const char *runtime_get_wifi_password(void);
 const char *runtime_get_mqtt_broker_uri(void);
+const char *runtime_get_mqtt_username(void);
+const char *runtime_get_mqtt_password(void);
 const char *runtime_get_device_id(void);
 const char *runtime_get_template_id(void);
 runtime_template_mode_t runtime_get_template_mode(void);
