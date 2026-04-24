@@ -46,6 +46,10 @@ func main() {
 
 	rdb := platform.NewRedis(cfg.RedisURL)
 	defer rdb.Close()
+	if rdb == nil {
+		slog.Error("redis client is nil")
+		os.Exit(1)
+	}
 
 	minioClient, err := platform.NewMinio(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL)
 	if err != nil {
