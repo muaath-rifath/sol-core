@@ -373,9 +373,12 @@ void app_main(void)
 
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = mqtt_broker_uri,
+        .broker.verification.skip_cert_common_name_check = true, // Allow connection to SSL brokers without full CA validation for now
         .session.protocol_ver = MQTT_PROTOCOL_V_5,
         .session.keepalive = 30,
         .credentials.client_id = s_device_id,
+        .credentials.username = CONFIG_MQTT_USERNAME,
+        .credentials.authentication.password = CONFIG_MQTT_PASSWORD,
         .session.last_will.topic = s_topic_state,
         .session.last_will.msg = s_lwt_payload,
         .session.last_will.msg_len = 0,
