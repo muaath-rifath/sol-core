@@ -17,4 +17,4 @@ RUN chmod +x /usr/local/bin/sol-builder
 
 # Workspace for builds
 WORKDIR /firmware
-ENTRYPOINT ["sol-builder"]
+CMD ["sol-builder"]
