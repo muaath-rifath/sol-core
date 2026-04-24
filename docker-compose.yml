@@ -72,6 +72,7 @@ services:
       context: ./sol-builder
     container_name: sol-builder
     restart: unless-stopped
+    env_file: .env
     environment:
       - REDIS_URL=redis://redis:6379/0
       - SOL_API_URL=http://sol-core:8080
