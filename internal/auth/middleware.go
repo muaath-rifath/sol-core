@@ -43,19 +43,20 @@ func (m *Middleware) Wrap(next http.Handler) http.Handler {
 		// Allow internal service token (e.g. from the builder worker)
 		internalToken := os.Getenv("INTERNAL_SERVICE_TOKEN")
 		if internalToken != "" && token == internalToken {
-			// Create a system user context
+			u, _, err := m.users.Upsert(r.Context(), "system-builder", "builder@sol.internal", "System Builder")
+			if err != nil {
+				slog.Error("system user upsert failed", "error", err)
+				http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+				return
+			}
+
 			claims := &Claims{
 				Subject: "system-builder",
 				Email:   "builder@sol.internal",
 				Name:    "System Builder",
 			}
 			ctx := context.WithValue(r.Context(), ClaimsKey, claims)
-			// Also set the User model for fromContext
-			ctx = user.WithContext(ctx, &user.User{
-				ID:    "00000000-0000-0000-0000-000000000000",
-				Email: claims.Email,
-				Name:  claims.Name,
-			})
+			ctx = user.WithContext(ctx, u)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
