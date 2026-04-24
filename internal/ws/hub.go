@@ -35,10 +35,16 @@ func NewHub(rdb *redis.Client) *Hub {
 }
 
 func (h *Hub) Run(ctx context.Context) {
+	slog.Info("Hub.Run started", "h", h)
+	if h == nil {
+		slog.Error("Hub is nil")
+		return
+	}
 	if h.rdb == nil {
 		slog.Error("Hub.rdb is nil")
 		return
 	}
+	slog.Info("Hub.rdb found", "rdb", h.rdb)
 	pubsub := h.rdb.Subscribe(ctx, "sol:events")
 	defer pubsub.Close()
 
