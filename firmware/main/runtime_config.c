@@ -19,6 +19,8 @@ typedef struct {
     char wifi_ssid[RUNTIME_WIFI_SSID_MAX_LEN + 1];
     char wifi_password[RUNTIME_WIFI_PASSWORD_MAX_LEN + 1];
     char mqtt_uri[RUNTIME_MQTT_URI_MAX_LEN + 1];
+    char mqtt_username[RUNTIME_MQTT_USERNAME_MAX_LEN + 1];
+    char mqtt_password[RUNTIME_MQTT_PASSWORD_MAX_LEN + 1];
     char device_id[RUNTIME_DEVICE_ID_MAX_LEN + 1];
     char template_id[RUNTIME_TEMPLATE_ID_MAX_LEN + 1];
     uint8_t template_mode;
@@ -34,6 +36,8 @@ __attribute__((used)) static runtime_config_blob_v2_t RUNTIME_CONFIG_BLOB = {
     .wifi_ssid = "",
     .wifi_password = "",
     .mqtt_uri = "",
+    .mqtt_username = "",
+    .mqtt_password = "",
     .device_id = "",
     .template_id = "",
     .template_mode = (uint8_t)RUNTIME_TEMPLATE_RGB_LED,
@@ -119,6 +123,34 @@ const char *runtime_get_mqtt_broker_uri(void)
     return value;
 }
 
+const char *runtime_get_mqtt_username(void)
+{
+    static char value[RUNTIME_MQTT_USERNAME_MAX_LEN + 1];
+    static bool inited = false;
+    if (!inited) {
+        copy_runtime_or_default(value, sizeof(value),
+                                RUNTIME_CONFIG_BLOB.mqtt_username,
+                                CONFIG_MQTT_USERNAME,
+                                runtime_blob_valid_v2());
+        inited = true;
+    }
+    return value;
+}
+
+const char *runtime_get_mqtt_password(void)
+{
+    static char value[RUNTIME_MQTT_PASSWORD_MAX_LEN + 1];
+    static bool inited = false;
+    if (!inited) {
+        copy_runtime_or_default(value, sizeof(value),
+                                RUNTIME_CONFIG_BLOB.mqtt_password,
+                                CONFIG_MQTT_PASSWORD,
+                                runtime_blob_valid_v2());
+        inited = true;
+    }
+    return value;
+}
+
 const char *runtime_get_device_id(void)
 {
     static char value[RUNTIME_DEVICE_ID_MAX_LEN + 1];
@@ -194,6 +226,8 @@ bool runtime_config_has_overrides(void)
         return (RUNTIME_CONFIG_BLOB.wifi_ssid[0] != '\0') ||
                (RUNTIME_CONFIG_BLOB.wifi_password[0] != '\0') ||
                (RUNTIME_CONFIG_BLOB.mqtt_uri[0] != '\0') ||
+               (RUNTIME_CONFIG_BLOB.mqtt_username[0] != '\0') ||
+               (RUNTIME_CONFIG_BLOB.mqtt_password[0] != '\0') ||
                (RUNTIME_CONFIG_BLOB.device_id[0] != '\0') ||
                (RUNTIME_CONFIG_BLOB.template_id[0] != '\0') ||
                (RUNTIME_CONFIG_BLOB.template_mode != (uint8_t)RUNTIME_TEMPLATE_RGB_LED) ||
