@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/muaathrifath/sol-core/internal/user"
@@ -36,6 +37,19 @@ func (m *Middleware) Wrap(next http.Handler) http.Handler {
 		token := extractBearerToken(r)
 		if token == "" {
 			http.Error(w, `{"error":"missing authorization token"}`, http.StatusUnauthorized)
+			return
+		}
+
+		// Allow internal service token (e.g. from the builder worker)
+		internalToken := os.Getenv("INTERNAL_SERVICE_TOKEN")
+		if internalToken != "" && token == internalToken {
+			// Create a system user context
+			ctx := context.WithValue(r.Context(), ClaimsKey, &Claims{
+				Subject: "system-builder",
+				Email:   "builder@sol.internal",
+				Name:    "System Builder",
+			})
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 

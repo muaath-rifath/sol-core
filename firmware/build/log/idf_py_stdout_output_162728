@@ -1,0 +1,18 @@
+Command: ninja all
+[1/1088] Generating project_elf_src_esp32s3.c
+[2/1088] Generating /home/muaathrifath/Projects/sol-demo-1/test_led/build/esp-idf/esp_system/ld/memory.ld linker script...
+[3/1088] Generating /home/muaathrifath/Projects/sol-demo-1/test_led/build/esp-idf/esp_system/ld/sections.ld.in linker script...
+[4/1088] Generating ../../partition_table/partition-table.bin
+FAILED: [code=2] partition_table/partition-table.bin /home/muaathrifath/Projects/sol-demo-1/test_led/build/partition_table/partition-table.bin 
+cd /home/muaathrifath/Projects/sol-demo-1/test_led/build/esp-idf/partition_table && /home/muaathrifath/.espressif/python_env/idf5.5_py3.14_env/bin/python /home/muaathrifath/esp/esp-idf/components/partition_table/gen_esp32part.py -q --offset 0x8000 --primary-bootloader-offset 0x0 --flash-size 16MB -- /home/muaathrifath/Projects/sol-demo-1/test_led/partitions.csv /home/muaathrifath/Projects/sol-demo-1/test_led/build/partition_table/partition-table.bin && /usr/bin/cmake -E echo "Partition table binary generated. Contents:" && /usr/bin/cmake -E echo "*******************************************************************************" && /home/muaathrifath/.espressif/python_env/idf5.5_py3.14_env/bin/python /home/muaathrifath/esp/esp-idf/components/partition_table/gen_esp32part.py -q --offset 0x8000 --primary-bootloader-offset 0x0 --flash-size 16MB -- /home/muaathrifath/Projects/sol-demo-1/test_led/build/partition_table/partition-table.bin && /usr/bin/cmake -E echo "*******************************************************************************"
+CSV Error at line 4: Partitions overlap. Partition sets offset 0x10000. Previous partition ends 0x11000
+[5/1088] Building C object esp-idf/esp_http_server/CMakeFiles/__idf_esp_http_server.dir/src/httpd_ws.c.obj
+[6/1088] Building C object esp-idf/esp_http_server/CMakeFiles/__idf_esp_http_server.dir/src/util/ctrl_sock.c.obj
+[7/1088] Building C object esp-idf/esp_http_server/CMakeFiles/__idf_esp_http_server.dir/src/httpd_sess.c.obj
+[8/1088] Building C object esp-idf/esp_http_server/CMakeFiles/__idf_esp_http_server.dir/src/httpd_uri.c.obj
+[9/1088] Building C object esp-idf/esp_http_server/CMakeFiles/__idf_esp_http_server.dir/src/httpd_main.c.obj
+[10/1088] Building C object esp-idf/esp_http_server/CMakeFiles/__idf_esp_http_server.dir/src/httpd_txrx.c.obj
+[11/1088] Building C object esp-idf/esp_https_ota/CMakeFiles/__idf_esp_https_ota.dir/src/esp_https_ota.c.obj
+[12/1088] Building C object esp-idf/esp_http_server/CMakeFiles/__idf_esp_http_server.dir/src/httpd_parse.c.obj
+[13/1088] Building C object esp-idf/esp_http_client/CMakeFiles/__idf_esp_http_client.dir/esp_http_client.c.obj
+ninja: build stopped: subcommand failed.

@@ -102,7 +102,10 @@ func main() {
 
 	firmwareStore := firmware.NewStore(minioClient, cfg.MinioBucket)
 	firmwareVersionRepo := firmware.NewVersionRepository(pgPool)
-	firmwareHandler := firmware.NewHandler(firmwareStore, firmwareVersionRepo)
+	firmwareBuildRepo := firmware.NewBuildRepository(pgPool)
+
+	firmwareBuilder := firmware.NewBuilder(rdb, firmwareBuildRepo)
+	firmwareHandler := firmware.NewHandler(firmwareStore, firmwareVersionRepo, firmwareBuildRepo, firmwareBuilder)
 	deviceHandler := device.NewHandler(deviceSvc, firmwareStore, firmwareVersionRepo)
 
 	automationRepo := automation.NewRepository(pgPool)
@@ -176,8 +179,15 @@ func main() {
 	// Firmware routes
 	mux.Handle("GET /api/v1/firmware", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.List)))
 	mux.Handle("POST /api/v1/firmware/upload", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.Upload)))
+	mux.Handle("POST /api/v1/firmware/build", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.Build)))
+	mux.Handle("GET /api/v1/firmware/builds/{id}", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.GetBuild)))
+	mux.Handle("GET /api/v1/firmware/targets", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.ListTargets)))
 	mux.Handle("GET /api/v1/firmware/{id}/download", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadByVersionID)))
 	mux.Handle("GET /api/v1/firmware/{id}/presigned-url", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.PresignedURL)))
+
+	// Internal build routes (for the worker)
+	mux.HandleFunc("PATCH /api/internal/firmware/builds/{id}", firmwareHandler.UpdateBuildStatus)
+	mux.HandleFunc("POST /api/internal/firmware/builds/{id}/logs", firmwareHandler.AppendBuildLogs)
 
 	// WebSocket
 	mux.Handle("/ws", authMiddleware.Wrap(http.HandlerFunc(hub.HandleWebSocket)))

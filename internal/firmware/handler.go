@@ -16,10 +16,106 @@ import (
 type Handler struct {
 	store    *Store
 	versions *VersionRepository
+	builds   *BuildRepository
+	builder  *Builder
 }
 
-func NewHandler(store *Store, versions *VersionRepository) *Handler {
-	return &Handler{store: store, versions: versions}
+func NewHandler(store *Store, versions *VersionRepository, builds *BuildRepository, builder *Builder) *Handler {
+	return &Handler{
+		store:    store,
+		versions: versions,
+		builds:   builds,
+		builder:  builder,
+	}
+}
+
+func (h *Handler) Build(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		TemplateID  string `json:"template_id"`
+		TargetBoard string `json:"target_board"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		return
+	}
+
+	if body.TemplateID == "" || body.TargetBoard == "" {
+		http.Error(w, `{"error":"template_id and target_board are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	jobID, err := h.builder.Submit(r.Context(), body.TemplateID, body.TargetBoard)
+	if err != nil {
+		slog.Error("submit build", "error", err)
+		http.Error(w, `{"error":"failed to start build"}`, http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"id": jobID})
+}
+
+func (h *Handler) GetBuild(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	build, err := h.builds.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(build)
+}
+
+func (h *Handler) UpdateBuildStatus(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var body struct {
+		Status            BuildStatus `json:"status"`
+		FirmwareVersionID string      `json:"firmware_version_id"`
+		Logs              string      `json:"logs"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		return
+	}
+
+	var err error
+	if body.Status == StatusSuccess && body.FirmwareVersionID != "" {
+		err = h.builds.UpdateSuccess(r.Context(), id, body.FirmwareVersionID, body.Logs)
+	} else {
+		err = h.builds.UpdateStatus(r.Context(), id, body.Status, body.Logs)
+	}
+
+	if err != nil {
+		slog.Error("update build status", "error", err)
+		http.Error(w, `{"error":"failed to update"}`, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) AppendBuildLogs(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var body struct {
+		Logs string `json:"logs"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, `{"error":"invalid request"}`, http.StatusBadRequest)
+		return
+	}
+
+	if err := h.builds.AppendLogs(r.Context(), id, body.Logs); err != nil {
+		slog.Error("append build logs", "error", err)
+		http.Error(w, `{"error":"failed to append"}`, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) ListTargets(w http.ResponseWriter, r *http.Request) {
+	targets := []string{"esp32", "esp32s2", "esp32s3", "esp32c3", "esp32c6", "esp32h2"}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(targets)
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {

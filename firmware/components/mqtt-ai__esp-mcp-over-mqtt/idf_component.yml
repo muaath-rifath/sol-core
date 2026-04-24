@@ -1,0 +1,7 @@
+description: MCP over MQTT 5.0 component for ESP-IDF
+repository: git://github.com/mqtt-ai/esp-mcp-over-mqtt.git
+repository_info:
+  commit_sha: aa5a40fbba04878bcbeb383c3e03b5943ee4973e
+  path: .
+url: https://mqtt.ai/
+version: 0.0.1

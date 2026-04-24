@@ -1,0 +1,6 @@
+dependencies:
+  idf:
+    version: '>=5.0.0'
+  espressif/led_strip: '*'
+  espressif/mqtt: '*'
+  espressif/cjson: '*'

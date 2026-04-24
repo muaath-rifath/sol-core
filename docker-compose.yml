@@ -68,6 +68,24 @@ services:
       # Service definition
       - "traefik.http.services.sol-svc.loadbalancer.server.port=8080"
 
+  sol-builder:
+    build:
+      context: ./sol-builder
+    container_name: sol-builder
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - SOL_API_URL=http://sol-core:8080
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      - FIRMWARE_SRC_DIR=/firmware
+    volumes:
+      - ./firmware:/firmware
+    depends_on:
+      - redis
+      - sol-core
+    networks:
+      - sol-net
+
   postgres:
     build:
       context: .
