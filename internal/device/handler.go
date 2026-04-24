@@ -326,6 +326,82 @@ func (h *Handler) OTA(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) CreateAppliance(w http.ResponseWriter, r *http.Request) {
+	if r.Body == nil {
+		http.Error(w, `{"error":"missing request body"}`, http.StatusBadRequest)
+		return
+	}
+	var req CreateApplianceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	app, err := h.svc.CreateAppliance(r.Context(), req)
+	if err != nil {
+		slog.Error("create appliance", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusCreated, app)
+}
+
+func (h *Handler) GetAppliance(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("applianceId")
+	app, err := h.svc.GetAppliance(r.Context(), id)
+	if err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+	writeJSON(w, http.StatusOK, app)
+}
+
+func (h *Handler) UpdateAppliance(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("applianceId")
+	if r.Body == nil {
+		http.Error(w, `{"error":"missing request body"}`, http.StatusBadRequest)
+		return
+	}
+	var req UpdateApplianceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	app, err := h.svc.UpdateAppliance(r.Context(), id, req)
+	if err != nil {
+		slog.Error("update appliance", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, app)
+}
+
+func (h *Handler) DeleteAppliance(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("applianceId")
+	if err := h.svc.DeleteAppliance(r.Context(), id); err != nil {
+		slog.Error("delete appliance", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) ListAppliancesByRoom(w http.ResponseWriter, r *http.Request) {
+	roomID := r.PathValue("roomId")
+	apps, err := h.svc.ListAppliancesByRoom(r.Context(), roomID)
+	if err != nil {
+		slog.Error("list appliances by room", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	if apps == nil {
+		apps = []Appliance{}
+	}
+	// Wrapping inside array cursor response style or just array? Just data array.
+	writeJSON(w, http.StatusOK, map[string]any{"data": apps})
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
