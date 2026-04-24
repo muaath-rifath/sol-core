@@ -17,6 +17,7 @@
 #include "runtime_config.h"
 #include "dht_sensor.h"
 #include "smart_plug.h"
+#include "certs.h"
 
 static const char *TAG = "main";
 
@@ -371,14 +372,15 @@ void app_main(void)
              "{\"deviceId\":\"%s\",\"name\":\"ESP32 LED Controller\",\"online\":false,\"ts\":0}",
              s_device_id);
 
+    cert_bundle_t certs = {0};
+    bool use_mtls = (certs_load(&certs) == ESP_OK);
+
     esp_mqtt_client_config_t mqtt_cfg = {
         .broker.address.uri = mqtt_broker_uri,
         .broker.verification.skip_cert_common_name_check = true, // Allow connection to SSL brokers without full CA validation for now
         .session.protocol_ver = MQTT_PROTOCOL_V_5,
         .session.keepalive = 30,
         .credentials.client_id = s_device_id,
-        .credentials.username = runtime_get_mqtt_username(),
-        .credentials.authentication.password = runtime_get_mqtt_password(),
         .session.last_will.topic = s_topic_state,
         .session.last_will.msg = s_lwt_payload,
         .session.last_will.msg_len = 0,
@@ -387,16 +389,32 @@ void app_main(void)
         .buffer.size = 8192,
     };
 
+    if (use_mtls) {
+        ESP_LOGI(TAG, "Using mTLS certificates from flash");
+        mqtt_cfg.broker.verification.certificate = certs.ca_cert;
+        mqtt_cfg.credentials.authentication.certificate = certs.client_cert;
+        mqtt_cfg.credentials.authentication.key = certs.client_key;
+    } else {
+        ESP_LOGI(TAG, "Using MQTT password authentication");
+        mqtt_cfg.credentials.username = runtime_get_mqtt_username();
+        mqtt_cfg.credentials.authentication.password = runtime_get_mqtt_password();
+    }
+
     s_mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
     if (!s_mqtt_client) {
         ESP_LOGE(TAG, "Failed to init MQTT client");
         led_set_color(64, 0, 0);
+        certs_free(&certs);
         return;
     }
 
     ESP_ERROR_CHECK(esp_mqtt_client_register_event(s_mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL));
     ESP_LOGI(TAG, "Starting MQTT client...");
     ESP_ERROR_CHECK(esp_mqtt_client_start(s_mqtt_client));
+
+    // Note: We don't call certs_free here because esp_mqtt_client_init might use the pointers.
+    // However, in standard ESP-IDF mqtt, the client makes a copy if configured to do so.
+    // To be safe, we leak this memory for now as it's a one-time allocation.
 
     if (s_template_mode == RUNTIME_TEMPLATE_ENV_SENSOR) {
         env_sensor_start(s_mqtt_client, s_device_id);
