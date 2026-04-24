@@ -61,3 +61,34 @@ type UpdateDeviceRequest struct {
 	RoomID   *string            `json:"room_id,omitempty"`
 	Metadata *map[string]string `json:"metadata,omitempty"`
 }
+
+type Appliance struct {
+	ID        string         `json:"id"`
+	DeviceID  string         `json:"device_id"`
+	RoomID    string         `json:"room_id,omitempty"`
+	Name      string         `json:"name"`
+	Type      DeviceType     `json:"type"`
+	Channel   *int           `json:"channel,omitempty"`
+	GPIOPin   *int           `json:"gpio_pin,omitempty"`
+	ActiveLow bool           `json:"active_low"`
+	State     map[string]any `json:"state"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+}
+
+type CreateApplianceRequest struct {
+	DeviceID  string     `json:"device_id"`
+	RoomID    string     `json:"room_id,omitempty"`
+	Name      string     `json:"name"`
+	Type      DeviceType `json:"type"`
+	Channel   *int       `json:"channel,omitempty"`
+	GPIOPin   *int       `json:"gpio_pin,omitempty"`
+	ActiveLow bool       `json:"active_low"`
+}
+
+type UpdateApplianceRequest struct {
+	Name      *string `json:"name,omitempty"`
+	Channel   *int    `json:"channel,omitempty"`
+	GPIOPin   *int    `json:"gpio_pin,omitempty"`
+	ActiveLow *bool   `json:"active_low,omitempty"`
+}

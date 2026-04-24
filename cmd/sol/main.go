@@ -151,6 +151,13 @@ func main() {
 	mux.Handle("POST /api/v1/homes/{homeId}/rooms/{roomId}/devices/{id}/command", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Command)))
 	mux.Handle("POST /api/v1/homes/{homeId}/rooms/{roomId}/devices/{id}/ota", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.OTA)))
 
+	// Appliance routes
+	mux.Handle("POST /api/v1/appliances", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.CreateAppliance)))
+	mux.Handle("GET /api/v1/appliances/{applianceId}", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.GetAppliance)))
+	mux.Handle("PUT /api/v1/appliances/{applianceId}", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.UpdateAppliance)))
+	mux.Handle("DELETE /api/v1/appliances/{applianceId}", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.DeleteAppliance)))
+	mux.Handle("GET /api/v1/homes/{homeId}/rooms/{roomId}/appliances", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.ListAppliancesByRoom)))
+
 	// Room routes
 	mux.Handle("GET /api/v1/homes/{homeId}/rooms", authMiddleware.Wrap(http.HandlerFunc(roomHandler.List)))
 	mux.Handle("POST /api/v1/homes/{homeId}/rooms", authMiddleware.Wrap(http.HandlerFunc(roomHandler.Create)))

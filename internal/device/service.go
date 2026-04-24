@@ -240,6 +240,32 @@ func (s *Service) HandleStateUpdate(ctx context.Context, deviceID string, state 
 		return err
 	}
 
+	if relaysAny, ok := state["relays"]; ok {
+		if relaysArray, ok := relaysAny.([]any); ok {
+			appliances, err := s.repo.ListAppliancesByDevice(ctx, deviceID)
+			if err == nil {
+				for _, app := range appliances {
+					if app.Channel != nil && *app.Channel < len(relaysArray) && *app.Channel >= 0 {
+						if isItOn, isValid := relaysArray[*app.Channel].(bool); isValid {
+							if app.State == nil {
+								app.State = make(map[string]any)
+							}
+							if currentOn, exists := app.State["isOn"].(bool); !exists || currentOn != isItOn {
+								app.State["isOn"] = isItOn
+								app.UpdatedAt = time.Now()
+								_ = s.repo.UpdateAppliance(ctx, &app)
+								s.hub.Broadcast("appliance.state", map[string]any{
+									"appliance_id": app.ID,
+									"state":        app.State,
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	s.hub.Broadcast("device.state", map[string]any{
 		"device_id": deviceID,
 		"state":     state,
@@ -262,4 +288,67 @@ func (s *Service) GetRecentTelemetry(ctx context.Context, deviceID string, limit
 		limit = 100
 	}
 	return s.repo.GetRecentTelemetry(ctx, deviceID, limit)
+}
+
+func (s *Service) CreateAppliance(ctx context.Context, req CreateApplianceRequest) (*Appliance, error) {
+	a := &Appliance{
+		ID:        uuid.NewString(),
+		DeviceID:  req.DeviceID,
+		RoomID:    req.RoomID,
+		Name:      req.Name,
+		Type:      req.Type,
+		Channel:   req.Channel,
+		GPIOPin:   req.GPIOPin,
+		ActiveLow: req.ActiveLow,
+		State:     make(map[string]any),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := s.repo.CreateAppliance(ctx, a); err != nil {
+		return nil, fmt.Errorf("create appliance: %w", err)
+	}
+	return a, nil
+}
+
+func (s *Service) GetAppliance(ctx context.Context, id string) (*Appliance, error) {
+	return s.repo.GetApplianceByID(ctx, id)
+}
+
+func (s *Service) ListAppliancesByRoom(ctx context.Context, roomID string) ([]Appliance, error) {
+	return s.repo.ListAppliancesByRoom(ctx, roomID)
+}
+
+func (s *Service) ListAppliancesByDevice(ctx context.Context, deviceID string) ([]Appliance, error) {
+	return s.repo.ListAppliancesByDevice(ctx, deviceID)
+}
+
+func (s *Service) UpdateAppliance(ctx context.Context, id string, req UpdateApplianceRequest) (*Appliance, error) {
+	a, err := s.repo.GetApplianceByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.Name != nil {
+		a.Name = *req.Name
+	}
+	if req.Channel != nil {
+		a.Channel = req.Channel
+	}
+	if req.GPIOPin != nil {
+		a.GPIOPin = req.GPIOPin
+	}
+	if req.ActiveLow != nil {
+		a.ActiveLow = *req.ActiveLow
+	}
+	a.UpdatedAt = time.Now()
+
+	if err := s.repo.UpdateAppliance(ctx, a); err != nil {
+		return nil, fmt.Errorf("update appliance: %w", err)
+	}
+	return a, nil
+}
+
+func (s *Service) DeleteAppliance(ctx context.Context, id string) error {
+	return s.repo.DeleteAppliance(ctx, id)
 }

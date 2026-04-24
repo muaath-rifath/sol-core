@@ -214,3 +214,89 @@ func (r *Repository) GetRecentTelemetry(ctx context.Context, deviceID string, li
 	}
 	return points, nil
 }
+
+func (r *Repository) CreateAppliance(ctx context.Context, a *Appliance) error {
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO appliances (id, device_id, room_id, name, type, channel, gpio_pin, active_low, state, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		a.ID, a.DeviceID, a.RoomID, a.Name, a.Type, a.Channel, a.GPIOPin, a.ActiveLow, a.State, a.CreatedAt, a.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("insert appliance: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) GetApplianceByID(ctx context.Context, id string) (*Appliance, error) {
+	var a Appliance
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, device_id, room_id, name, type, channel, gpio_pin, active_low, state, created_at, updated_at
+		 FROM appliances WHERE id = $1`, id,
+	).Scan(&a.ID, &a.DeviceID, &a.RoomID, &a.Name, &a.Type, &a.Channel, &a.GPIOPin, &a.ActiveLow, &a.State, &a.CreatedAt, &a.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("get appliance: %w", err)
+	}
+	return &a, nil
+}
+
+func (r *Repository) ListAppliancesByRoom(ctx context.Context, roomID string) ([]Appliance, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, device_id, room_id, name, type, channel, gpio_pin, active_low, state, created_at, updated_at
+		 FROM appliances WHERE room_id = $1 ORDER BY created_at DESC`, roomID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list appliances by room: %w", err)
+	}
+	defer rows.Close()
+
+	var appliances []Appliance
+	for rows.Next() {
+		var a Appliance
+		if err := rows.Scan(&a.ID, &a.DeviceID, &a.RoomID, &a.Name, &a.Type, &a.Channel, &a.GPIOPin, &a.ActiveLow, &a.State, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan appliance: %w", err)
+		}
+		appliances = append(appliances, a)
+	}
+	return appliances, nil
+}
+
+func (r *Repository) ListAppliancesByDevice(ctx context.Context, deviceID string) ([]Appliance, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, device_id, room_id, name, type, channel, gpio_pin, active_low, state, created_at, updated_at
+		 FROM appliances WHERE device_id = $1 ORDER BY created_at DESC`, deviceID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list appliances by device: %w", err)
+	}
+	defer rows.Close()
+
+	var appliances []Appliance
+	for rows.Next() {
+		var a Appliance
+		if err := rows.Scan(&a.ID, &a.DeviceID, &a.RoomID, &a.Name, &a.Type, &a.Channel, &a.GPIOPin, &a.ActiveLow, &a.State, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan appliance: %w", err)
+		}
+		appliances = append(appliances, a)
+	}
+	return appliances, nil
+}
+
+func (r *Repository) UpdateAppliance(ctx context.Context, a *Appliance) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE appliances SET name = $2, channel = $3, gpio_pin = $4, active_low = $5, state = $6, updated_at = $7
+		 WHERE id = $1`,
+		a.ID, a.Name, a.Channel, a.GPIOPin, a.ActiveLow, a.State, a.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("update appliance: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) DeleteAppliance(ctx context.Context, id string) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM appliances WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete appliance: %w", err)
+	}
+	return nil
+}
