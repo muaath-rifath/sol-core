@@ -35,6 +35,8 @@ static bool s_relay_logical_states[RUNTIME_RELAY_CHANNELS_MAX] = {false, false, 
 
 #define STATE_HEARTBEAT_INTERVAL_MS 2000
 
+static bool template_supports_relay(void);
+
 static void publish_state(bool online)
 {
     if (!s_mqtt_client) {
