@@ -40,14 +40,25 @@ func NewService(caCertPath, caKeyPath string) (*Service, error) {
 	if caKeyBlock == nil {
 		return nil, fmt.Errorf("decode ca key pem")
 	}
-	caKey, err := x509.ParsePKCS1PrivateKey(caKeyBlock.Bytes)
+
+	// Try PKCS#8 first (modern default)
+	key, err := x509.ParsePKCS8PrivateKey(caKeyBlock.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("parse ca key: %w", err)
+		// Fallback to PKCS#1
+		key, err = x509.ParsePKCS1PrivateKey(caKeyBlock.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("parse ca key (tried PKCS8 and PKCS1): %w", err)
+		}
+	}
+
+	rsaKey, ok := key.(*rsa.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("ca key is not an RSA private key")
 	}
 
 	return &Service{
 		caCert: caCert,
-		caKey:  caKey,
+		caKey:  rsaKey,
 	}, nil
 }
 
