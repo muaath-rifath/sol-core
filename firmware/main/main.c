@@ -215,9 +215,12 @@ static void handle_command_json(const char *json_text)
             if (cJSON_IsNumber(jg)) g = jg->valueint;
             if (cJSON_IsNumber(jb)) b = jb->valueint;
         }
-        if (r < 0) r = 0; if (r > 255) r = 255;
-        if (g < 0) g = 0; if (g > 255) g = 255;
-        if (b < 0) b = 0; if (b > 255) b = 255;
+        if (r < 0) r = 0;
+        if (r > 255) r = 255;
+        if (g < 0) g = 0;
+        if (g > 255) g = 255;
+        if (b < 0) b = 0;
+        if (b > 255) b = 255;
         led_set_color((uint8_t)r, (uint8_t)g, (uint8_t)b);
         publish_ack(req_id, true, "LED color set successfully");
     } else if (strcmp(action, "turn_led_off") == 0 || strcmp(action, "off") == 0) {
