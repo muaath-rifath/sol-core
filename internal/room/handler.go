@@ -133,3 +133,25 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{"error": msg})
 }
+
+func (h *Handler) ListActivity(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	homeID := r.PathValue("homeId")
+	roomID := r.PathValue("roomId")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit <= 0 {
+		limit = 20
+	}
+
+	logs, err := h.svc.ListActivityLogs(r.Context(), roomID, homeID, limit)
+	if err != nil {
+		slog.Error("list activity logs", "error", err)
+		writeError(w, http.StatusInternalServerError, "internal")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": logs})
+}

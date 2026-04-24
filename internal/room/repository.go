@@ -136,3 +136,40 @@ func (r *Repository) Delete(ctx context.Context, id, homeID string) error {
 	}
 	return nil
 }
+
+func (r *Repository) InsertActivityLog(ctx context.Context, log *ActivityLog) error {
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO room_activity_logs (room_id, timestamp, title, description, badge_text, badge_color)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		log.RoomID, log.Timestamp, log.Title, log.Description, log.BadgeText, log.BadgeColor,
+	)
+	if err != nil {
+		return fmt.Errorf("insert activity log: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) ListActivityLogs(ctx context.Context, roomID string, limit int) ([]ActivityLog, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT room_id, timestamp, title, description, badge_text, badge_color
+		 FROM room_activity_logs
+		 WHERE room_id = $1
+		 ORDER BY timestamp DESC
+		 LIMIT $2`,
+		roomID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list activity logs: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []ActivityLog
+	for rows.Next() {
+		var log ActivityLog
+		if err := rows.Scan(&log.RoomID, &log.Timestamp, &log.Title, &log.Description, &log.BadgeText, &log.BadgeColor); err != nil {
+			return nil, fmt.Errorf("scan activity log: %w", err)
+		}
+		logs = append(logs, log)
+	}
+	return logs, nil
+}
