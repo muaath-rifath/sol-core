@@ -603,7 +603,7 @@ static void event_handler(void *args, esp_event_base_t base, int32_t event_id,
         break;
     }
     default:
-        ESP_LOGD("mcp_server", "other event_id: %d", event_id);
+        ESP_LOGD("mcp_server", "other event_id: %d", (int)event_id);
     }
 }
 
