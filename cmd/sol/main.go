@@ -58,6 +58,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := platform.EnsureBucket(minioClient, cfg.MinioBucket); err != nil {
+		slog.Error("failed to ensure minio bucket", "bucket", cfg.MinioBucket, "error", err)
+		os.Exit(1)
+	}
+
 	// Brevo email client (nil when API key not configured — email silently disabled)
 	var brevoClient *platform.BrevoClient
 	if cfg.BrevoAPIKey != "" {

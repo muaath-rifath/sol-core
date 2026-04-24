@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/minio/minio-go/v7"
@@ -16,4 +17,18 @@ func NewMinio(endpoint, accessKey, secretKey string, useSSL bool) (*minio.Client
 		return nil, fmt.Errorf("minio client: %w", err)
 	}
 	return client, nil
+}
+
+func EnsureBucket(client *minio.Client, bucketName string) error {
+	exists, err := client.BucketExists(context.Background(), bucketName)
+	if err != nil {
+		return fmt.Errorf("check bucket: %w", err)
+	}
+	if !exists {
+		err = client.MakeBucket(context.Background(), bucketName, minio.MakeBucketOptions{})
+		if err != nil {
+			return fmt.Errorf("make bucket: %w", err)
+		}
+	}
+	return nil
 }
