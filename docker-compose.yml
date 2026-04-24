@@ -43,6 +43,8 @@ services:
         condition: service_started
     networks:
       - sol-net
+    volumes:
+      - ./certs:/certs:ro
     labels:
       - "traefik.enable=true"
       # Main API routes — ForwardAuth validates Bearer token via Zitadel
