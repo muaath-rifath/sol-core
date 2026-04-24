@@ -34,7 +34,6 @@ services:
     container_name: sol-core
     restart: unless-stopped
     env_file: .env
-    profiles: [app]
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,7 +75,6 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - SOL_API_URL=http://sol-core:8080
-      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
       - FIRMWARE_SRC_DIR=/firmware
     volumes:
       - ./firmware:/firmware
