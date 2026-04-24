@@ -12,6 +12,14 @@ menu "Smart Home Demo Configuration"
         string "MQTT Broker URI"
         default "mqtt://192.168.1.100:1883"
 
+    config MQTT_USERNAME
+        string "MQTT Username"
+        default ""
+
+    config MQTT_PASSWORD
+        string "MQTT Password"
+        default ""
+
     config DEVICE_ID
         string "Device ID"
         default "esp32-led-001"

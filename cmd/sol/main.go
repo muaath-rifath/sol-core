@@ -129,6 +129,14 @@ func main() {
 	mqttHandler := mqtt.NewHandler(deviceSvc, hub)
 	mqttClient.SetMessageHandler(mqttHandler.Handle)
 
+	// Subscribe to device topics
+	if err := mqttClient.Subscribe("sol/devices/+/state", 1); err != nil {
+		slog.Error("failed to subscribe to device state", "error", err)
+	}
+	if err := mqttClient.Subscribe("sol/devices/+/telemetry", 1); err != nil {
+		slog.Error("failed to subscribe to device telemetry", "error", err)
+	}
+
 	// Routes
 	mux := http.NewServeMux()
 
