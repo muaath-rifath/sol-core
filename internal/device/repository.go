@@ -281,6 +281,27 @@ func (r *Repository) ListAppliancesByDevice(ctx context.Context, deviceID string
 	return appliances, nil
 }
 
+func (r *Repository) ListAllAppliances(ctx context.Context) ([]Appliance, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, device_id, room_id, name, type, channel, gpio_pin, active_low, state, created_at, updated_at
+		 FROM appliances ORDER BY name ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list all appliances: %w", err)
+	}
+	defer rows.Close()
+
+	var appliances []Appliance
+	for rows.Next() {
+		var a Appliance
+		if err := rows.Scan(&a.ID, &a.DeviceID, &a.RoomID, &a.Name, &a.Type, &a.Channel, &a.GPIOPin, &a.ActiveLow, &a.State, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan appliance: %w", err)
+		}
+		appliances = append(appliances, a)
+	}
+	return appliances, nil
+}
+
 func (r *Repository) UpdateAppliance(ctx context.Context, a *Appliance) error {
 	_, err := r.pool.Exec(ctx,
 		`UPDATE appliances SET name = $2, channel = $3, gpio_pin = $4, active_low = $5, state = $6, updated_at = $7
