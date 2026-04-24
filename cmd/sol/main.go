@@ -186,8 +186,8 @@ func main() {
 	mux.Handle("POST /api/v1/firmware/build", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.Build)))
 	mux.Handle("GET /api/v1/firmware/builds/{id}", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.GetBuild)))
 	mux.Handle("GET /api/v1/firmware/targets", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.ListTargets)))
-	mux.Handle("GET /api/v1/firmware/{id}/download", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadByVersionID)))
-	mux.Handle("GET /api/v1/firmware/{id}/presigned-url", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.PresignedURL)))
+	mux.Handle("GET /api/v1/firmware/versions/{id}/download", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadByVersionID)))
+	mux.Handle("GET /api/v1/firmware/versions/{id}/presigned-url", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.PresignedURL)))
 
 	// Internal build routes (for the worker)
 	mux.HandleFunc("PATCH /api/internal/firmware/builds/{id}", firmwareHandler.UpdateBuildStatus)
