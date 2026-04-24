@@ -80,7 +80,6 @@ services:
       - ./firmware:/firmware
     depends_on:
       - redis
-      - sol-core
     networks:
       - sol-net
 
