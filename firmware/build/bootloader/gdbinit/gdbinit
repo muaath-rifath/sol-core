@@ -1,0 +1,2 @@
+source /home/muaathrifath/Projects/sol-demo-1/test_led/build/bootloader/gdbinit/symbols
+source /home/muaathrifath/Projects/sol-demo-1/test_led/build/bootloader/gdbinit/connect
