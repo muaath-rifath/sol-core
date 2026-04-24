@@ -1,0 +1,4 @@
+.git
+node_modules
+sol-builder/sol-builder-linux-amd64
+firmware/build
