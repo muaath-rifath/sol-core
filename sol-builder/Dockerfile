@@ -1,5 +1,8 @@
 # Stage 1: Build the worker binary
 FROM golang:1.23-alpine AS builder
+
+ENV GOTOOLCHAIN=auto
+
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
