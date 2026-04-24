@@ -44,10 +44,17 @@ func (m *Middleware) Wrap(next http.Handler) http.Handler {
 		internalToken := os.Getenv("INTERNAL_SERVICE_TOKEN")
 		if internalToken != "" && token == internalToken {
 			// Create a system user context
-			ctx := context.WithValue(r.Context(), ClaimsKey, &Claims{
+			claims := &Claims{
 				Subject: "system-builder",
 				Email:   "builder@sol.internal",
 				Name:    "System Builder",
+			}
+			ctx := context.WithValue(r.Context(), ClaimsKey, claims)
+			// Also set the User model for fromContext
+			ctx = user.WithContext(ctx, &user.User{
+				ID:    "00000000-0000-0000-0000-000000000000",
+				Email: claims.Email,
+				Name:  claims.Name,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
