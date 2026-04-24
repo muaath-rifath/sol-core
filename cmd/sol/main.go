@@ -12,6 +12,7 @@ import (
 	"github.com/muaathrifath/sol-core/internal/ai"
 	"github.com/muaathrifath/sol-core/internal/auth"
 	"github.com/muaathrifath/sol-core/internal/automation"
+	"github.com/muaathrifath/sol-core/internal/certs"
 	"github.com/muaathrifath/sol-core/internal/config"
 	"github.com/muaathrifath/sol-core/internal/device"
 	"github.com/muaathrifath/sol-core/internal/firmware"
@@ -110,13 +111,19 @@ func main() {
 	deviceRepo := device.NewRepository(pgPool)
 	deviceSvc := device.NewService(deviceRepo, roomSvc, mqttClient, hub)
 
+	// Certs Service
+	certsSvc, err := certs.NewService(cfg.CACertPath, cfg.CAKeyPath)
+	if err != nil {
+		slog.Warn("certs service disabled (mTLS will not be available)", "error", err)
+	}
+
 	firmwareStore := firmware.NewStore(minioClient, cfg.MinioBucket)
 	firmwareVersionRepo := firmware.NewVersionRepository(pgPool)
 	firmwareBuildRepo := firmware.NewBuildRepository(pgPool)
 
 	firmwareBuilder := firmware.NewBuilder(rdb, firmwareBuildRepo)
 	firmwareHandler := firmware.NewHandler(firmwareStore, firmwareVersionRepo, firmwareBuildRepo, firmwareBuilder)
-	deviceHandler := device.NewHandler(deviceSvc, firmwareStore, firmwareVersionRepo)
+	deviceHandler := device.NewHandler(deviceSvc, firmwareStore, firmwareVersionRepo, certsSvc)
 
 	automationRepo := automation.NewRepository(pgPool)
 	automationSvc := automation.NewService(automationRepo, deviceSvc, aiClient)
@@ -166,6 +173,7 @@ func main() {
 	mux.Handle("GET /api/v1/devices", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.List)))
 	mux.Handle("POST /api/v1/devices", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Create)))
 	mux.Handle("GET /api/v1/devices/{id}", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Get)))
+	mux.Handle("GET /api/v1/devices/{id}/provision", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Provision)))
 	mux.Handle("GET /api/v1/devices/{id}/telemetry", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.GetTelemetry)))
 	mux.Handle("PUT /api/v1/devices/{id}", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Update)))
 	mux.Handle("DELETE /api/v1/devices/{id}", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Delete)))

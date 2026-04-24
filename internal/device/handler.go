@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/muaathrifath/sol-core/internal/certs"
 	"github.com/muaathrifath/sol-core/internal/firmware"
 	"github.com/muaathrifath/sol-core/internal/user"
 )
@@ -18,10 +19,40 @@ type Handler struct {
 	svc           *Service
 	firmwareStore *firmware.Store
 	versionRepo   *firmware.VersionRepository
+	certsSvc      *certs.Service
 }
 
-func NewHandler(svc *Service, firmwareStore *firmware.Store, versionRepo *firmware.VersionRepository) *Handler {
-	return &Handler{svc: svc, firmwareStore: firmwareStore, versionRepo: versionRepo}
+func NewHandler(svc *Service, firmwareStore *firmware.Store, versionRepo *firmware.VersionRepository, certsSvc *certs.Service) *Handler {
+	return &Handler{svc: svc, firmwareStore: firmwareStore, versionRepo: versionRepo, certsSvc: certsSvc}
+}
+
+func (h *Handler) Provision(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, `{"error":"device id is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Verify device exists
+	_, err := h.svc.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if h.certsSvc == nil {
+		http.Error(w, `{"error":"mTLS service not configured"}`, http.StatusNotImplemented)
+		return
+	}
+
+	bundle, err := h.certsSvc.GenerateDeviceCertificate(id)
+	if err != nil {
+		slog.Error("provision device certs", "error", err, "device_id", id)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, bundle)
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
