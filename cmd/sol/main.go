@@ -142,6 +142,7 @@ func main() {
 	mux.Handle("GET /api/v1/devices", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.List)))
 	mux.Handle("POST /api/v1/devices", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Create)))
 	mux.Handle("GET /api/v1/devices/{id}", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Get)))
+	mux.Handle("GET /api/v1/devices/{id}/telemetry", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.GetTelemetry)))
 	mux.Handle("PUT /api/v1/devices/{id}", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Update)))
 	mux.Handle("DELETE /api/v1/devices/{id}", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Delete)))
 	mux.Handle("POST /api/v1/devices/{id}/command", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Command)))

@@ -193,3 +193,24 @@ func (r *Repository) InsertTelemetry(ctx context.Context, tp *TelemetryPoint) er
 	}
 	return nil
 }
+
+func (r *Repository) GetRecentTelemetry(ctx context.Context, deviceID string, limit int) ([]TelemetryPoint, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT device_id, timestamp, data
+		 FROM device_telemetry WHERE device_id = $1 ORDER BY timestamp DESC LIMIT $2`, deviceID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get telemetry: %w", err)
+	}
+	defer rows.Close()
+
+	var points []TelemetryPoint
+	for rows.Next() {
+		var tp TelemetryPoint
+		if err := rows.Scan(&tp.DeviceID, &tp.Timestamp, &tp.Data); err != nil {
+			return nil, fmt.Errorf("scan telemetry: %w", err)
+		}
+		points = append(points, tp)
+	}
+	return points, nil
+}

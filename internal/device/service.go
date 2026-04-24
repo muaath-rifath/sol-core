@@ -208,3 +208,10 @@ func (s *Service) HandleTelemetry(ctx context.Context, deviceID string, timestam
 	}
 	return s.repo.InsertTelemetry(ctx, tp)
 }
+
+func (s *Service) GetRecentTelemetry(ctx context.Context, deviceID string, limit int) ([]TelemetryPoint, error) {
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	return s.repo.GetRecentTelemetry(ctx, deviceID, limit)
+}

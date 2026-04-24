@@ -74,6 +74,21 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, d)
 }
 
+func (h *Handler) GetTelemetry(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	points, err := h.svc.GetRecentTelemetry(r.Context(), id, limit)
+	if err != nil {
+		slog.Error("get telemetry", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	if points == nil {
+		points = []TelemetryPoint{}
+	}
+	writeJSON(w, http.StatusOK, points)
+}
+
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if r.Body == nil {

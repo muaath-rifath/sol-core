@@ -747,6 +747,37 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/devices/{id}/telemetry:
+    parameters:
+      - $ref: "#/components/parameters/DeviceId"
+    get:
+      tags: [Devices]
+      summary: Get recent telemetry for device
+      operationId: getDeviceTelemetry
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Number of telemetry points to fetch
+          required: false
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: Recent telemetry points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TelemetryPoint"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/v1/devices/{id}/command:
     parameters:
       - $ref: "#/components/parameters/DeviceId"
@@ -1600,3 +1631,16 @@ components:
         url:
           type: string
           format: uri
+
+    TelemetryPoint:
+      type: object
+      required: [device_id, timestamp, data]
+      properties:
+        device_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        data:
+          type: object
+          additionalProperties: true
