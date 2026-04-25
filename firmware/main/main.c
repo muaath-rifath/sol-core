@@ -84,11 +84,7 @@ static void publish_state(bool online) {
   cJSON_free(payload);
 }
 
-static bool template_supports_relay(void) {
-  return s_template_mode == RUNTIME_TEMPLATE_RELAY_SINGLE ||
-         s_template_mode == RUNTIME_TEMPLATE_RELAY_4CH_GPIO ||
-         s_template_mode == RUNTIME_TEMPLATE_SMART_PLUG;
-}
+static bool template_supports_relay(void) { return true; }
 
 static bool relay_channel_valid(uint8_t channel) {
   return channel < RUNTIME_RELAY_CHANNELS_MAX && s_relay_pins[channel] >= 0;
