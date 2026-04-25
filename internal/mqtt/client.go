@@ -95,12 +95,18 @@ func (c *Client) Disconnect() {
 }
 
 func createTLSConfig(caCertPath, clientCertPath, clientKeyPath string) (*tls.Config, error) {
-	// Import CA cert
+	// Import our Root CA cert
 	caCert, err := os.ReadFile(caCertPath)
 	if err != nil {
 		return nil, fmt.Errorf("read ca cert: %w", err)
 	}
-	caCertPool := x509.NewCertPool()
+
+	// Load system root CAs
+	caCertPool, err := x509.SystemCertPool()
+	if err != nil {
+		slog.Warn("failed to load system cert pool, falling back to empty pool", "error", err)
+		caCertPool = x509.NewCertPool()
+	}
 	caCertPool.AppendCertsFromPEM(caCert)
 
 	// Import client cert/key
