@@ -93,7 +93,7 @@ func main() {
 	go hub.Run(ctx)
 
 	// MQTT
-	mqttClient, err := mqtt.NewClient(cfg.MQTTBrokerURL, cfg.MQTTClientID, cfg.MQTTUsername, cfg.MQTTPassword)
+	mqttClient, err := mqtt.NewClient(cfg.MQTTBrokerURL, cfg.MQTTClientID, cfg.MQTTUsername, cfg.MQTTPassword, cfg.CACertPath, "/certs/backend.crt", "/certs/backend.key")
 	if err != nil {
 		slog.Error("failed to connect to mqtt broker", "error", err)
 		os.Exit(1)

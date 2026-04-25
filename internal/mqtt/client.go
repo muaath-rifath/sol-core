@@ -1,9 +1,12 @@
 package mqtt
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 
 	pahomqtt "github.com/eclipse/paho.mqtt.golang"
 )
@@ -15,7 +18,7 @@ type Client struct {
 	messageHandler MessageHandler
 }
 
-func NewClient(brokerURL, clientID, username, password string) (*Client, error) {
+func NewClient(brokerURL, clientID, username, password string, caCertPath, clientCertPath, clientKeyPath string) (*Client, error) {
 	opts := pahomqtt.NewClientOptions().
 		AddBroker(brokerURL).
 		SetClientID(clientID).
@@ -24,6 +27,15 @@ func NewClient(brokerURL, clientID, username, password string) (*Client, error) 
 
 	if username != "" {
 		opts.SetUsername(username).SetPassword(password)
+	}
+
+	// mTLS Configuration
+	if caCertPath != "" && clientCertPath != "" && clientKeyPath != "" {
+		tlsConfig, err := createTLSConfig(caCertPath, clientCertPath, clientKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("create tls config: %w", err)
+		}
+		opts.SetTLSConfig(tlsConfig)
 	}
 
 	c := &Client{}
@@ -80,4 +92,26 @@ func (c *Client) Publish(topic string, payload any) error {
 
 func (c *Client) Disconnect() {
 	c.client.Disconnect(1000)
+}
+
+func createTLSConfig(caCertPath, clientCertPath, clientKeyPath string) (*tls.Config, error) {
+	// Import CA cert
+	caCert, err := os.ReadFile(caCertPath)
+	if err != nil {
+		return nil, fmt.Errorf("read ca cert: %w", err)
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	// Import client cert/key
+	cert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("load client key pair: %w", err)
+	}
+
+	return &tls.Config{
+		RootCAs:            caCertPool,
+		Certificates:       []tls.Certificate{cert},
+		InsecureSkipVerify: false,
+	}, nil
 }
