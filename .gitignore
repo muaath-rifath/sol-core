@@ -36,3 +36,13 @@ traefik/acme.json
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# ESP-IDF
+firmware/build/
+firmware/managed_components/
+firmware/dependencies.lock
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/sdkconfig.bak
+firmware/sdkconfig.pre_kconf_fix.bak
+firmware/sdkconfig.bak.before_kconfig_fix
