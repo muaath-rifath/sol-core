@@ -1,0 +1,39 @@
+Command: ninja all
+fatal: detected dubious ownership in repository at '/opt/esp-idf'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /opt/esp-idf
+Configuration Report                                                                                                                             
+ ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+   Parser Version: 1                                                                                                                             
+   Verbosity: default                                                                                                                            
+   Defaults policy: sdkconfig                                                                                                                    
+   Status: Finished with notifications                                                                                                           
+                                                                                                                                                 
+  Miscellaneous                                                                                                                                  
+   ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────   
+    * Choice ESP_CONSOLE_SECONDARY has ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG as default selection, but given symbol is not visible. Ignoring.    
+    * Choice ESP_CONSOLE_SECONDARY has no valid sdkconfig selection set to y. Will use Kconfig default selection ESP_CONSOLE_SECONDARY_NONE.     
+   ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────   
+  Default Value Mismatch                                                                                                                         
+   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────          
+    Using sdkconfig default values                                                                                                               
+    Choice symbols with different default selection between sdkconfig and Kconfig                                                                
+    ESP_CONSOLE_UART: Kconfig default selection: ESP_CONSOLE_UART_DEFAULT, sdkconfig default selection: ESP_CONSOLE_USB_SERIAL_JTAG              
+   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────          
+  Multiple Assignments                                                                                                                           
+   ─────────────────────────────────────────────────────                                                                                         
+    Choice ESP_CONSOLE_UART:                                                                                                                     
+        ESP_CONSOLE_UART_DEFAULT (default selection)                                                                                             
+        ESP_CONSOLE_USB_SERIAL_JTAG (default selection)                                                                                          
+        -> using ESP_CONSOLE_USB_SERIAL_JTAG                                                                                                     
+   ─────────────────────────────────────────────────────                                                                                         
+ ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+fatal: detected dubious ownership in repository at '/opt/esp-idf'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /opt/esp-idf
+fatal: detected dubious ownership in repository at '/opt/esp-idf/components/openthread/openthread'
+To add an exception for this directory, call:
+
+	git config --global --add safe.directory /opt/esp-idf/components/openthread/openthread

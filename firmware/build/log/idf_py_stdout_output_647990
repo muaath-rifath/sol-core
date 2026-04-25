@@ -1,0 +1,269 @@
+Command: /home/muaathrifath/.espressif/python_env/idf6.0_py3.14_env/bin/python /opt/esp-idf/tools/idf_monitor.py -p /dev/ttyACM0 -b 115200 --toolchain-prefix xtensa-esp32s3-elf- --target esp32s3 --revision 0 /home/muaathrifath/Projects/sol/sol-core/firmware/build/my_led.elf /home/muaathrifath/Projects/sol/sol-core/firmware/build/bootloader/bootloader.elf -m '/home/muaathrifath/.espressif/python_env/idf6.0_py3.14_env/bin/python' '/opt/esp-idf/tools/idf.py' '-p' '/dev/ttyACM0'
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x9 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037b99a
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x1544
+load:0x403c8700,len:0xd60
+load:0x403cb700,len:0x2fa8
+entry 0x403c8904
+[0;32mI (24) boot: ESP-IDF HEAD-HASH-NOTFOUND 2nd stage bootloader[0m
+[0;32mI (24) boot: compile time Apr 25 2026 19:57:54[0m
+[0;32mI (25) boot: Multicore bootloader[0m
+[0;32mI (25) boot: chip revision: v0.2[0m
+[0;32mI (25) boot: efuse block revision: v1.3[0m
+[0;32mI (25) boot.esp32s3: Boot SPI Speed : 80MHz[0m
+[0;32mI (25) boot.esp32s3: SPI Mode       : DIO[0m
+[0;32mI (26) boot.esp32s3: SPI Flash Size : 16MB[0m
+[0;32mI (26) boot: Enabling RNG early entropy source...[0m
+[0;32mI (26) boot: Partition Table:[0m
+[0;32mI (26) boot: ## Label            Usage          Type ST Offset   Length[0m
+[0;32mI (26) boot:  0 nvs              WiFi data        01 02 00009000 00005000[0m
+[0;32mI (27) boot:  1 otadata          OTA data         01 00 0000e000 00002000[0m
+[0;32mI (27) boot:  2 ota_0            OTA app          00 10 00010000 00300000[0m
+[0;32mI (28) boot:  3 ota_1            OTA app          00 11 00310000 00300000[0m
+[0;32mI (28) boot:  4 certs            Unknown data     01 99 00610000 00010000[0m
+[0;32mI (28) boot: End of partition table[0m
+[0;32mI (29) esp_image: segment 0: paddr=00010020 vaddr=3c0b0020 size=24b94h (150420) map[0m
+[0;32mI (56) esp_image: segment 1: paddr=00034bbc vaddr=3fc9b600 size=053cch ( 21452) load[0m
+[0;32mI (61) esp_image: segment 2: paddr=00039f90 vaddr=40374000 size=06088h ( 24712) load[0m
+[0;32mI (67) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=af668h (718440) map[0m
+[0;32mI (196) esp_image: segment 4: paddr=000ef690 vaddr=4037a088 size=114e0h ( 70880) load[0m
+[0;32mI (222) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (222) boot: Disabling RNG early entropy source...[0m
+[0;32mI (223) cpu_start: Multicore app[0m
+[0;32mI (232) cpu_start: Pro cpu start user code[0m
+[0;32mI (232) cpu_start: cpu freq: 160000000 Hz[0m
+[0;32mI (232) app_init: Application information:[0m
+[0;32mI (235) app_init: Project name:     my_led[0m
+[0;32mI (240) app_init: App version:      1[0m
+[0;32mI (244) app_init: Compile time:     Apr 25 2026 14:46:04[0m
+[0;32mI (250) app_init: ELF file SHA256:  7ce1e9dfe...[0m
+[0;32mI (255) app_init: ESP-IDF:          v5.3.5-192-g78a04b369d[0m
+[0;32mI (262) efuse_init: Min chip rev:     v0.0[0m
+[0;32mI (266) efuse_init: Max chip rev:     v0.99 [0m
+[0;32mI (271) efuse_init: Chip rev:         v0.2[0m
+[0;32mI (276) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (283) heap_init: At 3FCA51C8 len 00044548 (273 KiB): RAM[0m
+[0;32mI (289) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM[0m
+[0;32mI (296) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM[0m
+[0;32mI (302) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM[0m
+[0;32mI (309) spi_flash: detected chip: boya[0m
+[0;32mI (312) spi_flash: flash io: dio[0m
+[0;32mI (317) sleep: Configure to isolate all GPIO pins in sleep state[0m
+[0;32mI (323) sleep: Enable automatic switching of GPIO sleep configuration[0m
+[0;32mI (331) main_task: Started on CPU0[0m
+[0;32mI (341) main_task: Calling app_main()[0m
+[0;32mI (361) gpio: GPIO[48]| InputEn: 0| OutputEn: 1| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0 [0m
+[0;32mI (361) led: LED initialized on GPIO 48[0m
+[0;32mI (361) led: Color set: R=0 G=0 B=64[0m
+[0;32mI (371) gpio: GPIO[12]| InputEn: 0| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0 [0m
+[0;32mI (381) main: Relay channel 1 mapped to GPIO 12 (activeLow=false)[0m
+[0;32mI (381) gpio: GPIO[13]| InputEn: 0| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0 [0m
+[0;32mI (391) main: Relay channel 2 mapped to GPIO 13 (activeLow=false)[0m
+[0;32mI (401) gpio: GPIO[14]| InputEn: 0| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0 [0m
+[0;32mI (411) main: Relay channel 3 mapped to GPIO 14 (activeLow=false)[0m
+[0;32mI (411) gpio: GPIO[15]| InputEn: 0| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0 [0m
+[0;32mI (421) main: Relay channel 4 mapped to GPIO 15 (activeLow=false)[0m
+[0;32mI (431) main: Template selected: universal (mode=0)[0m
+[0;32mI (441) main: Using flash-time network configuration override[0m
+[0;32mI (441) main: Wi-Fi SSID: muaathrifath[0m
+[0;32mI (451) main: MQTT broker: ssl://mqtt.sol.muaathrifath.me:8883[0m
+[0;32mI (451) pp: pp rom version: e7ae62f[0m
+[0;32mI (461) net80211: net80211 rom version: e7ae62f[0m
+[0;32mI (471) wifi:wifi driver task: 3fcaf960, prio:23, stack:6656, core=0[0m
+[0;32mI (481) wifi:wifi firmware version: 1e05681[0m
+[0;32mI (481) wifi:wifi certification version: v7.0[0m
+[0;32mI (481) wifi:config NVS flash: enabled[0m
+[0;32mI (481) wifi:config nano formating: disabled[0m
+[0;32mI (481) wifi:Init data frame dynamic rx buffer num: 32[0m
+[0;32mI (491) wifi:Init static rx mgmt buffer num: 5[0m
+[0;32mI (491) wifi:Init management short buffer num: 32[0m
+[0;32mI (501) wifi:Init dynamic tx buffer num: 32[0m
+[0;32mI (501) wifi:Init static tx FG buffer num: 2[0m
+[0;32mI (511) wifi:Init static rx buffer size: 1600[0m
+[0;32mI (511) wifi:Init static rx buffer num: 10[0m
+[0;32mI (511) wifi:Init dynamic rx buffer num: 32[0m
+[0;32mI (521) wifi_init: rx ba win: 6[0m
+[0;32mI (521) wifi_init: accept mbox: 6[0m
+[0;32mI (521) wifi_init: tcpip mbox: 32[0m
+[0;32mI (531) wifi_init: udp mbox: 6[0m
+[0;32mI (531) wifi_init: tcp mbox: 6[0m
+[0;32mI (541) wifi_init: tcp tx win: 5760[0m
+[0;32mI (541) wifi_init: tcp rx win: 5760[0m
+[0;32mI (541) wifi_init: tcp mss: 1440[0m
+[0;32mI (551) wifi_init: WiFi IRAM OP enabled[0m
+[0;32mI (551) wifi_init: WiFi RX IRAM OP enabled[0m
+[0;32mI (561) phy_init: phy_version 711,97bcf0a2,Aug 25 2025,19:04:10[0m
+[0;32mI (601) wifi:mode : sta (9c:13:9e:ab:0f:5c)[0m
+[0;32mI (601) wifi:enable tsf[0m
+[0;32mI (601) wifi:Set ps type: 0, coexist: 0[0m
+
+[0;32mI (601) wifi: Connecting to muaathrifath...[0m
+[0;32mI (611) wifi:new:<11,2>, old:<1,0>, ap:<255,255>, sta:<11,2>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (611) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (1391) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (1401) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (1421) wifi:connected with muaathrifath, aid = 4, channel 11, 40D, bssid = 1e:9f:77:99:56:55[0m
+[0;32mI (1421) wifi:security: WPA3-SAE HUNT_AND_PECK, phy: bgn, rssi: -29, cipher(pairwise:0x3, group:0x3), pmf:1[0m
+[0;32mI (1431) wifi:pm start, type: 0[0m
+
+[0;32mI (1431) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (1441) wifi:set rx beacon pti, rx_bcn_pti: 0, bcn_timeout: 25000, mt_pti: 0, mt_time: 10000[0m
+[0;32mI (1491) wifi:<ba-add>idx:0 (ifx:0, 1e:9f:77:99:56:55), tid:0, ssn:4, winSize:64[0m
+[0;32mI (1511) wifi:dp: 2, bi: 102400, li: 4, scale listen interval from 307200 us to 409600 us[0m
+[0;32mI (1511) wifi:AP's beacon interval = 102400 us, DTIM period = 2[0m
+[0;32mI (2451) esp_netif_handlers: sta ip: 10.221.111.99, mask: 255.255.255.0, gw: 10.221.111.87[0m
+[0;32mI (2451) wifi: Connected, IP: 10.221.111.99[0m
+[0;32mI (2451) wifi: Connected to muaathrifath[0m
+[0;32mI (2451) led: Color set: R=0 G=64 B=0[0m
+[0;33mW (2961) certs: Certificates partition 'certs' not found[0m
+[0;32mI (2961) main: Using MQTT password authentication[0m
+[0;32mI (2961) main: Starting MQTT client...[0m
+[0;31mE (2961) mqtt_client: Not support this mqtt scheme ssl[0m
+[0;31mE (2971) mqtt_client: Failed to create transport list[0m
+[0;32mI (2971) led: LED off[0m
+[0;32mI (2971) main: Device online, waiting for MQTT commands...[0m
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40041a76
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048d0b
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048de8
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048e22
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048d0b
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048d46
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x400490e9
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �[0;32mI (418) gpio: GPIO[14]| InputEn: 0| OutputEn: 0| OpenDraiI (728) wifi:mode : sta (9c:13:9e:ab:0f:5c)
+[0;32mI (728) wifi:enable tsf[0m
+[0;32mI (728) wifi:Set ps type: 0, coexist: 0[0m
+
+[0;32mI (728) wifi: Connecting to muaathrifath...[0m
+[0;32mI (738) wifi:new:<11,2>, old:<1,0>, ap:<255,255>, sta:<11,2>, prof:1, snd_ch_cfg:0x0[0m
+[0;32mI (738) wifi:state: init -> auth (0xb0)[0m
+[0;32mI (1528) wifi:state: auth -> assoc (0x0)[0m
+[0;32mI (1548) wifi:state: assoc -> run (0x10)[0m
+[0;32mI (1618) wifi:connected with muaathrifath, aid = 6, channel 11, 40D, bssid = 1e:9f:77:99:56:55[0m
+[0;32mI (1618) wifi:security: WPA3-SAE HUNT_AND_PECK, phy: bgn, rssi: -48, cipher(pairwise:0x3, group:0x3), pmf:1[0m
+[0;32mI (1628) wifi:pm start, type: 0[0m
+
+[0;32mI (1628) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us[0m
+[0;32mI (1638) wifi:set rx beacon pti, rx_bcn_pti: 0, bcn_timeout: 25000, mt_pti: 0, mt_time: 10000[0m
+[0;32mI (1648) wifi:dp: 2, bi: 102400, li: 4, scale listen interval from 307200 us to 409600 us[0m
+[0;32mI (1658) wifi:AP's beacon interval = 102400 us, DTIM period = 2[0m
+[0;32mI (1678) wifi:<ba-add>idx:0 (ifx:0, 1e:9f:77:99:56:55), tid:0, ssn:4, winSize:64[0m
+[0;32mI (2648) esp_netif_handlers: sta ip: 10.221.111.99, mask: 255.255.255.0, gw: 10.221.111.87[0m
+[0;32mI (2648) wifi: Connected, IP: 10.221.111.99[0m
+[0;32mI (2648) wifi: Connected to muaathrifath[0m
+[0;32mI (2648) led: Color set: R=0 G=64 B=0[0m
+[0;33mW (3158) certs: Certificates partition 'certs' not found[0m
+[0;32mI (3158) main: Using MQTT password authentication[0m
+[0;32mI (3158) main: Starting MQTT client...[0m
+[0;32mI (3158) led: LED off[0m
+[0;32mI (3158) main: Device online, waiting for MQTT commands...[0m
+[0;31mE (3308) esp-tls-mbedtls: No server verification option set in esp_tls_cfg_t structure. Check esp_tls API reference[0m
+[0;31mE (3308) esp-tls-mbedtls: Failed to set client configurations, returned [0x8017] (ESP_ERR_MBEDTLS_SSL_SETUP_FAILED)[0m
+[0;31mE (3318) esp-tls: create_ssl_handle failed[0m
+[0;31mE (3318) esp-tls: Failed to open new connection[0m
+[0;31mE (3328) transport_base: Failed to open a new connection[0m
+[0;31mE (3328) mqtt_client: Error transport connect[0m
+[0;31mE (3338) main: MQTT error event[0m
+[0;33mW (3338) main: MQTT disconnected[0m
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x4037b99a
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x400490e9
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048d06
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048d0b
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x400490cc
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048d0b
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x400490d5
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40041a76
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048d03
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x400490d7
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048de8
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048dfc
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x400490cc
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      �ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x0 (DOWNLOAD(USB/UART0))
+Saved PC:0x40048d46
+waiting for download
+�      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      ��      
