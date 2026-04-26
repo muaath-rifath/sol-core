@@ -167,7 +167,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 }
 
 func (s *Service) SendCommand(ctx context.Context, cmd Command) error {
-	topic := fmt.Sprintf("sol/devices/%s/command", cmd.DeviceID)
+	topic := fmt.Sprintf("sol/devices/%s/cmd", cmd.DeviceID)
 	return s.mqtt.Publish(topic, cmd)
 }
 
@@ -184,7 +184,7 @@ func (s *Service) TriggerOTA(ctx context.Context, deviceID string, url string) e
 		})
 	}
 
-	topic := fmt.Sprintf("sol/devices/%s/command", deviceID)
+	topic := fmt.Sprintf("sol/devices/%s/cmd", deviceID)
 	return s.mqtt.Publish(topic, Command{
 		DeviceID: deviceID,
 		Action:   "ota_update",
