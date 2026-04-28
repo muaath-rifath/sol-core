@@ -548,7 +548,7 @@ void app_main(void) {
 
   if (use_mtls) {
     ESP_LOGI(TAG, "Using mTLS certificates from flash");
-    mqtt_cfg.broker.verification.certificate = s_certs.ca_cert;
+    mqtt_cfg.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
     mqtt_cfg.credentials.authentication.certificate = s_certs.client_cert;
     mqtt_cfg.credentials.authentication.key = s_certs.client_key;
   } else {
