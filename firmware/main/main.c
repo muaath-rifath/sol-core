@@ -211,6 +211,7 @@ static void ota_task(void *param) {
   s_ota_in_progress = true;
   s_ota_cancel_requested = false;
 
+  publish_ota_status("initiated", 1, "ota_task starting ota_start", NULL);
   esp_err_t ret = ota_start(url, publish_ota_status, ota_cancel_requested_cb);
   if (ret != ESP_OK && !s_ota_cancel_requested) {
     ESP_LOGE(TAG, "OTA failed: %s", esp_err_to_name(ret));
