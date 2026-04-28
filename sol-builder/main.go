@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -75,7 +76,7 @@ func runBuild(payload BuildJobPayload, apiURL, srcDir string) {
 	}
 
 	// 4. Ingest binaries
-	versionID, err := ingestBinaries(apiURL, payload.TemplateID, payload.JobID, srcDir)
+	versionID, err := ingestBinaries(apiURL, payload.TemplateID, payload.TargetBoard, payload.JobID, srcDir)
 	if err != nil {
 		updateStatus(apiURL, payload.JobID, "failed", "", fmt.Sprintf("\nIngestion failed: %v", err))
 		return
@@ -137,9 +138,9 @@ func appendLogs(apiURL, jobID, logs string) {
 	_, _ = http.DefaultClient.Do(req)
 }
 
-func ingestBinaries(apiURL, templateID, jobID, srcDir string) (string, error) {
+func ingestBinaries(apiURL, templateID, targetBoard, jobID, srcDir string) (string, error) {
 	buildDir := filepath.Join(srcDir, "build")
-	
+
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
@@ -160,17 +161,17 @@ func ingestBinaries(apiURL, templateID, jobID, srcDir string) (string, error) {
 	}
 
 	writer.WriteField("template_id", templateID)
-	writer.WriteField("version", time.Now().UTC().Format("2006-01-02T15-04-05Z"))
+	writer.WriteField("version", buildVersionTag(templateID, targetBoard, jobID, srcDir))
 	writer.Close()
 
 	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/firmware/upload", apiURL), body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	
+
 	internalToken := os.Getenv("INTERNAL_SERVICE_TOKEN")
 	if internalToken != "" {
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", internalToken))
 	}
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", err
@@ -187,6 +188,70 @@ func ingestBinaries(apiURL, templateID, jobID, srcDir string) (string, error) {
 	}
 	json.NewDecoder(resp.Body).Decode(&res)
 	return res.ID, nil
+}
+
+func buildVersionTag(templateID, targetBoard, jobID, srcDir string) string {
+	source := strings.TrimSpace(os.Getenv("FIRMWARE_SOURCE_TAG"))
+	if source == "" {
+		source = gitShortSHA(srcDir)
+	}
+	if source == "" {
+		source = projectVersion(srcDir)
+	}
+	if source == "" {
+		if len(jobID) > 8 {
+			source = jobID[:8]
+		} else {
+			source = jobID
+		}
+	}
+
+	return fmt.Sprintf("%s-%s-%s-%s", sanitizeTagPart(templateID), sanitizeTagPart(targetBoard), time.Now().UTC().Format("20060102T150405Z"), sanitizeTagPart(source))
+}
+
+func gitShortSHA(dir string) string {
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "--short=8", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func projectVersion(srcDir string) string {
+	data, err := os.ReadFile(filepath.Join(srcDir, "build", "project_description.json"))
+	if err != nil {
+		return ""
+	}
+	var desc struct {
+		ProjectVersion string `json:"project_version"`
+	}
+	if err := json.Unmarshal(data, &desc); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(desc.ProjectVersion)
+}
+
+func sanitizeTagPart(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "unknown"
+	}
+
+	var b strings.Builder
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			continue
+		}
+		if r == '-' || r == '_' || r == '.' {
+			b.WriteRune(r)
+		}
+	}
+	if b.Len() == 0 {
+		return "unknown"
+	}
+	return b.String()
 }
 
 func envOrDefault(key, fallback string) string {
