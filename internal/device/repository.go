@@ -33,7 +33,7 @@ func (r *Repository) Create(ctx context.Context, d *Device) error {
 func (r *Repository) GetByID(ctx context.Context, id string) (*Device, error) {
 	var d Device
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, name, type, room_id, state, metadata, firmware_id, online, created_at, updated_at
+		`SELECT id, name, type, room_id, state, metadata, COALESCE(firmware_id, ''), online, created_at, updated_at
 		 FROM devices WHERE id = $1`, id,
 	).Scan(&d.ID, &d.Name, &d.Type, &d.RoomID, &d.State, &d.Metadata, &d.FirmwareID, &d.Online, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
@@ -44,7 +44,7 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*Device, error) {
 
 func (r *Repository) List(ctx context.Context) ([]Device, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, name, type, room_id, state, metadata, firmware_id, online, created_at, updated_at
+		`SELECT id, name, type, room_id, state, metadata, COALESCE(firmware_id, ''), online, created_at, updated_at
 		 FROM devices ORDER BY created_at DESC`,
 	)
 	if err != nil {
@@ -65,7 +65,7 @@ func (r *Repository) List(ctx context.Context) ([]Device, error) {
 
 func (r *Repository) ListPaginated(ctx context.Context, cursorTime *time.Time, cursorID string, limit int) ([]Device, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, name, type, room_id, state, metadata, firmware_id, online, created_at, updated_at
+		`SELECT id, name, type, room_id, state, metadata, COALESCE(firmware_id, ''), online, created_at, updated_at
 		 FROM devices
 		 WHERE ($1::timestamptz IS NULL
 		        OR created_at < $1
@@ -91,7 +91,7 @@ func (r *Repository) ListPaginated(ctx context.Context, cursorTime *time.Time, c
 
 func (r *Repository) ListByRoom(ctx context.Context, roomID string) ([]Device, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, name, type, room_id, state, metadata, firmware_id, online, created_at, updated_at
+		`SELECT id, name, type, room_id, state, metadata, COALESCE(firmware_id, ''), online, created_at, updated_at
 		 FROM devices WHERE room_id = $1 ORDER BY created_at DESC`, roomID,
 	)
 	if err != nil {
@@ -112,7 +112,7 @@ func (r *Repository) ListByRoom(ctx context.Context, roomID string) ([]Device, e
 
 func (r *Repository) ListByRoomPaginated(ctx context.Context, roomID string, cursorTime *time.Time, cursorID string, limit int) ([]Device, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, name, type, room_id, state, metadata, firmware_id, online, created_at, updated_at
+		`SELECT id, name, type, room_id, state, metadata, COALESCE(firmware_id, ''), online, created_at, updated_at
 		 FROM devices
 		 WHERE room_id = $1
 		   AND ($2::timestamptz IS NULL
@@ -151,7 +151,7 @@ func (r *Repository) RoomBelongsToHome(ctx context.Context, roomID, homeID strin
 func (r *Repository) GetByIDInRoom(ctx context.Context, id, roomID string) (*Device, error) {
 	var d Device
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, name, type, room_id, state, metadata, firmware_id, online, created_at, updated_at
+		`SELECT id, name, type, room_id, state, metadata, COALESCE(firmware_id, ''), online, created_at, updated_at
 		 FROM devices WHERE id = $1 AND room_id = $2`, id, roomID,
 	).Scan(&d.ID, &d.Name, &d.Type, &d.RoomID, &d.State, &d.Metadata, &d.FirmwareID, &d.Online, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
