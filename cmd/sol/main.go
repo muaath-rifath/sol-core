@@ -133,7 +133,7 @@ func main() {
 
 	firmwareBuilder := firmware.NewBuilder(rdb, firmwareBuildRepo)
 	firmwareHandler := firmware.NewHandler(firmwareStore, firmwareVersionRepo, firmwareBuildRepo, firmwareBuilder)
-	deviceHandler := device.NewHandler(deviceSvc, firmwareStore, firmwareVersionRepo, certsSvc)
+	deviceHandler := device.NewHandler(deviceSvc, firmwareStore, firmwareVersionRepo, certsSvc, cfg.PublicAPIURL)
 
 	automationRepo := automation.NewRepository(pgPool)
 	automationSvc := automation.NewService(automationRepo, deviceSvc, aiClient)
@@ -232,6 +232,10 @@ func main() {
 	mux.Handle("GET /api/v1/firmware/targets", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.ListTargets)))
 	mux.Handle("GET /api/v1/firmware/versions/{id}/download", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadByVersionID)))
 	mux.Handle("GET /api/v1/firmware/versions/{id}/presigned-url", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.PresignedURL)))
+
+	// Public OTA firmware download (no auth)
+	mux.HandleFunc("GET /api/v1/ota/firmware/{id}", firmwareHandler.DownloadByVersionID)
+
 
 	// Internal build routes (for the worker)
 	mux.HandleFunc("PATCH /api/internal/firmware/builds/{id}", firmwareHandler.UpdateBuildStatus)

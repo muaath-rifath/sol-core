@@ -47,6 +47,9 @@ type Config struct {
 	// OTA safety/tuning
 	OTAOnlineFreshnessSec int
 	OTAAttemptTimeoutSec  int
+
+	// PublicAPIURL is used for OTA firmware downloads
+	PublicAPIURL string
 }
 
 func Load() (*Config, error) {
@@ -74,6 +77,7 @@ func Load() (*Config, error) {
 		FrontendURL:           envOrDefault("FRONTEND_URL", "http://localhost:3000"),
 		OTAOnlineFreshnessSec: envIntOrDefault("OTA_ONLINE_FRESHNESS_SEC", 45),
 		OTAAttemptTimeoutSec:  envIntOrDefault("OTA_ATTEMPT_TIMEOUT_SEC", 480),
+		PublicAPIURL:          envOrDefault("PUBLIC_API_URL", "http://localhost:8080"),
 	}
 
 	return cfg, nil

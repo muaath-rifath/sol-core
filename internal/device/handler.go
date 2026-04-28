@@ -20,10 +20,11 @@ type Handler struct {
 	firmwareStore *firmware.Store
 	versionRepo   *firmware.VersionRepository
 	certsSvc      *certs.Service
+	publicAPIURL  string
 }
 
-func NewHandler(svc *Service, firmwareStore *firmware.Store, versionRepo *firmware.VersionRepository, certsSvc *certs.Service) *Handler {
-	return &Handler{svc: svc, firmwareStore: firmwareStore, versionRepo: versionRepo, certsSvc: certsSvc}
+func NewHandler(svc *Service, firmwareStore *firmware.Store, versionRepo *firmware.VersionRepository, certsSvc *certs.Service, publicAPIURL string) *Handler {
+	return &Handler{svc: svc, firmwareStore: firmwareStore, versionRepo: versionRepo, certsSvc: certsSvc, publicAPIURL: publicAPIURL}
 }
 
 func (h *Handler) Provision(w http.ResponseWriter, r *http.Request) {
@@ -342,12 +343,7 @@ func (h *Handler) OTA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url, err := h.firmwareStore.PresignedURL(r.Context(), v.AppKey, 24*time.Hour)
-	if err != nil {
-		slog.Error("presign firmware url", "error", err)
-		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
-		return
-	}
+	url := fmt.Sprintf("%s/api/v1/ota/firmware/%s", h.publicAPIURL, v.ID)
 
 	var requestedBy *string
 	if u := user.FromContext(r.Context()); u != nil {
@@ -475,11 +471,7 @@ func (h *Handler) RetryOTA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url, err := h.firmwareStore.PresignedURL(r.Context(), v.AppKey, 24*time.Hour)
-	if err != nil {
-		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
-		return
-	}
+	url := fmt.Sprintf("%s/api/v1/ota/firmware/%s", h.publicAPIURL, v.ID)
 
 	requestedBy := &u.ID
 	attempt, err := h.svc.TriggerOTA(r.Context(), d, homeID, roomID, v.ID, url, requestedBy, nil)
