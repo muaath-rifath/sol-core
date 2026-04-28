@@ -2,19 +2,11 @@
 #include <string.h>
 
 #include "cJSON.h"
-#include "driver/gpio.h"
-#include "esp_event.h"
-#include "esp_log.h"
-#include "esp_system.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "mqtt_client.h"
-#include "nvs_flash.h"
-
 #include "certs.h"
 #include "dht_sensor.h"
-#include "led_control.h"
-#include "ota.h"
+#include "driver/gpio.h"
+#include "esp_crt_bundle.h"
+#include "esp_event.h"
 #include "runtime_config.h"
 #include "smart_plug.h"
 #include "wifi.h"
@@ -74,7 +66,8 @@ static void publish_ota_status(const char *status, int progress,
     return;
   }
 
-  int msg_id = esp_mqtt_client_publish(s_mqtt_client, s_topic_ota, payload, 0, 1, 0);
+  int msg_id =
+      esp_mqtt_client_publish(s_mqtt_client, s_topic_ota, payload, 0, 1, 0);
   if (msg_id < 0) {
     ESP_LOGW(TAG, "Failed to publish OTA status");
   }
@@ -358,8 +351,7 @@ static void handle_command_json(const char *json_text) {
     const char *cancel_id =
         cJSON_IsString(req_id_obj) ? req_id_obj->valuestring : req_id;
 
-    if (cancel_id && cancel_id[0] != '\0' &&
-        s_last_ota_request_id[0] != '\0' &&
+    if (cancel_id && cancel_id[0] != '\0' && s_last_ota_request_id[0] != '\0' &&
         strcmp(cancel_id, s_last_ota_request_id) != 0) {
       publish_ack(cancel_id, false, "request id does not match active OTA");
       publish_ota_status("failed", 0, "cancel rejected: request id mismatch",
