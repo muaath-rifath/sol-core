@@ -1,0 +1,13 @@
+tls:
+  options:
+    mtls:
+      clientAuth:
+        caFiles:
+          - /certs/ca.crt
+        clientAuthType: RequireAndVerifyClientCert
+
+http:
+  middlewares:
+    mtls-header:
+      passTLSClientCert:
+        pem: true

@@ -33,6 +33,8 @@ static bool s_relay_logical_states[RUNTIME_RELAY_CHANNELS_MAX] = {false, false,
 
 #define STATE_HEARTBEAT_INTERVAL_MS 2000
 
+static cert_bundle_t s_certs = {0};
+
 static bool template_supports_relay(void);
 
 static bool ota_cancel_requested_cb(void) { return s_ota_cancel_requested; }
@@ -205,7 +207,7 @@ static void ota_task(void *param) {
   s_ota_cancel_requested = false;
 
   publish_ota_status("initiated", 1, "ota_task starting ota_start", NULL);
-  esp_err_t ret = ota_start(url, publish_ota_status, ota_cancel_requested_cb);
+  esp_err_t ret = ota_start(url, s_certs.client_cert, s_certs.client_key, publish_ota_status, ota_cancel_requested_cb);
   if (ret != ESP_OK && !s_ota_cancel_requested) {
     ESP_LOGE(TAG, "OTA failed: %s", esp_err_to_name(ret));
     publish_ota_status("failed", 0, "OTA failed", esp_err_to_name(ret));
@@ -483,8 +485,8 @@ void app_main(void) {
            "Controller\",\"online\":false,\"ts\":0}",
            s_device_id);
 
-  cert_bundle_t certs = {0};
-  bool use_mtls = (certs_load(&certs) == ESP_OK);
+  s_certs = (cert_bundle_t){0};
+  bool use_mtls = (certs_load(&s_certs) == ESP_OK);
 
   esp_mqtt_client_config_t mqtt_cfg = {
       .broker.address.uri = mqtt_broker_uri,
@@ -504,9 +506,9 @@ void app_main(void) {
 
   if (use_mtls) {
     ESP_LOGI(TAG, "Using mTLS certificates from flash");
-    mqtt_cfg.broker.verification.certificate = certs.ca_cert;
-    mqtt_cfg.credentials.authentication.certificate = certs.client_cert;
-    mqtt_cfg.credentials.authentication.key = certs.client_key;
+    mqtt_cfg.broker.verification.certificate = s_certs.ca_cert;
+    mqtt_cfg.credentials.authentication.certificate = s_certs.client_cert;
+    mqtt_cfg.credentials.authentication.key = s_certs.client_key;
   } else {
     ESP_LOGI(TAG, "Using MQTT password authentication");
     mqtt_cfg.credentials.username = runtime_get_mqtt_username();
@@ -517,7 +519,7 @@ void app_main(void) {
   if (!s_mqtt_client) {
     ESP_LOGE(TAG, "Failed to init MQTT client");
     led_set_color(64, 0, 0);
-    certs_free(&certs);
+    certs_free(&s_certs);
     return;
   }
 

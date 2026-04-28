@@ -26,6 +26,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/acme.json:/acme/acme.json
       - ./traefik/conf:/traefik/conf:ro
+      - ./certs:/certs:ro
     networks:
       - sol-net
 
@@ -66,6 +67,13 @@ services:
       - "traefik.http.routers.sol-health.entrypoints=websecure"
       - "traefik.http.routers.sol-health.tls.certresolver=letsencrypt"
       - "traefik.http.routers.sol-health.service=sol-svc"
+      # Device OTA firmware download (mTLS protected)
+      - "traefik.http.routers.sol-ota.rule=Host(`ota.sol.muaathrifath.me`) && PathPrefix(`/api/v1/ota/attempts/`)"
+      - "traefik.http.routers.sol-ota.entrypoints=websecure"
+      - "traefik.http.routers.sol-ota.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.sol-ota.tls.options=mtls@file"
+      - "traefik.http.routers.sol-ota.middlewares=mtls-header@file"
+      - "traefik.http.routers.sol-ota.service=sol-svc"
       # Service definition
       - "traefik.http.services.sol-svc.loadbalancer.server.port=8080"
 
