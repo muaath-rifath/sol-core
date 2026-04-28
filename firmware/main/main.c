@@ -441,6 +441,35 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
   }
 }
 
+#include "esp_sntp.h"
+#include <time.h>
+#include <sys/time.h>
+
+static void initialize_sntp(void) {
+  ESP_LOGI(TAG, "Initializing SNTP");
+  esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+  esp_sntp_setservername(0, "pool.ntp.org");
+  esp_sntp_init();
+  
+  // Wait for time to be set
+  int retry = 0;
+  const int retry_count = 15;
+  while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
+    ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+    vTaskDelay(pdMS_TO_TICKS(2000));
+  }
+  
+  time_t now = 0;
+  struct tm timeinfo = { 0 };
+  time(&now);
+  localtime_r(&now, &timeinfo);
+  if (timeinfo.tm_year < (2020 - 1900)) {
+    ESP_LOGE(TAG, "Failed to get current time from NTP server.");
+  } else {
+    ESP_LOGI(TAG, "System time is set: %s", asctime(&timeinfo));
+  }
+}
+
 void app_main(void) {
   esp_err_t ret = nvs_flash_init();
   if (ret == ESP_ERR_NVS_NO_FREE_PAGES ||
@@ -481,6 +510,8 @@ void app_main(void) {
     led_set_color(64, 0, 0);
     return;
   }
+
+  initialize_sntp();
 
   led_set_color(0, 64, 0);
   vTaskDelay(pdMS_TO_TICKS(500));
