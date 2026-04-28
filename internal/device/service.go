@@ -383,6 +383,7 @@ func (s *Service) GetOTAAttemptByID(ctx context.Context, attemptID string) (*OTA
 }
 
 func (s *Service) HandleCommandAck(_ context.Context, deviceID string, ack map[string]any) error {
+	slog.Info("received command ack from device", "device_id", deviceID, "ack", ack)
 	requestID, _ := ack["requestId"].(string)
 	if requestID == "" {
 		requestID, _ = ack["request_id"].(string)
@@ -487,7 +488,8 @@ func mapOTAStatus(raw string) OTAAttemptStatus {
 	return OTAAttemptStatusDownloading
 }
 
-func (s *Service) HandleOTAStatus(_ context.Context, _ string, payload map[string]any) error {
+func (s *Service) HandleOTAStatus(_ context.Context, deviceID string, payload map[string]any) error {
+	slog.Info("received ota status from device", "device_id", deviceID, "payload", payload)
 	requestID, _ := payload["requestId"].(string)
 	if requestID == "" {
 		return nil
