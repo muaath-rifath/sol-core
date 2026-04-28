@@ -196,7 +196,7 @@ func (s *Service) SendCommand(ctx context.Context, cmd Command) error {
 	return s.mqtt.Publish(topic, cmd)
 }
 
-func (s *Service) TriggerOTA(ctx context.Context, d *Device, homeID, roomID, firmwareVersionID, url string, requestedBy *string, idempotencyKey *string) (*OTAAttempt, error) {
+func (s *Service) TriggerOTA(ctx context.Context, d *Device, homeID, roomID, firmwareVersionID string, requestedBy *string, idempotencyKey *string) (*OTAAttempt, error) {
 	if d == nil {
 		return nil, fmt.Errorf("device is required")
 	}
@@ -238,6 +238,22 @@ func (s *Service) TriggerOTA(ctx context.Context, d *Device, homeID, roomID, fir
 		return nil, err
 	}
 
+	if roomID != "" {
+		_ = s.roomSvc.InsertActivityLog(ctx, &room.ActivityLog{
+			RoomID:      roomID,
+			Timestamp:   time.Now(),
+			Title:       "OTA Flash Started",
+			Description: fmt.Sprintf("Started OTA flashing for %s", d.Name),
+			BadgeText:   "Started",
+			BadgeColor:  "bg-tertiary-fixed text-on-tertiary-fixed",
+		})
+	}
+
+	s.hub.Broadcast("ota.attempt.updated", attempt)
+	return attempt, nil
+}
+
+func (s *Service) SendOTACommand(ctx context.Context, d *Device, attempt *OTAAttempt, url string) error {
 	topic := fmt.Sprintf("sol/devices/%s/cmd", d.ID)
 	if err := s.mqtt.Publish(topic, Command{
 		DeviceID:  d.ID,
@@ -252,22 +268,9 @@ func (s *Service) TriggerOTA(ctx context.Context, d *Device, homeID, roomID, fir
 		finishedAt := time.Now()
 		_ = s.otaRepo.AppendLog(ctx, attempt.RequestID, "Failed to publish OTA command: "+msg)
 		_ = s.otaRepo.UpdateProgress(ctx, attempt.RequestID, OTAAttemptStatusFailed, 0, &msg, &finishedAt)
-		return nil, err
+		return err
 	}
-
-	if roomID != "" {
-		_ = s.roomSvc.InsertActivityLog(ctx, &room.ActivityLog{
-			RoomID:      roomID,
-			Timestamp:   time.Now(),
-			Title:       "OTA Flash Started",
-			Description: fmt.Sprintf("Started OTA flashing for %s", d.Name),
-			BadgeText:   "Started",
-			BadgeColor:  "bg-tertiary-fixed text-on-tertiary-fixed",
-		})
-	}
-
-	s.hub.Broadcast("ota.attempt.updated", attempt)
-	return attempt, nil
+	return nil
 }
 
 func isOTATerminalStatus(status OTAAttemptStatus) bool {

@@ -50,6 +50,7 @@ type Config struct {
 
 	// PublicAPIURL is used for OTA firmware downloads
 	PublicAPIURL string
+	OTAAPIURL    string
 }
 
 func Load() (*Config, error) {
@@ -78,6 +79,7 @@ func Load() (*Config, error) {
 		OTAOnlineFreshnessSec: envIntOrDefault("OTA_ONLINE_FRESHNESS_SEC", 45),
 		OTAAttemptTimeoutSec:  envIntOrDefault("OTA_ATTEMPT_TIMEOUT_SEC", 480),
 		PublicAPIURL:          envOrDefault("PUBLIC_API_URL", "http://localhost:8080"),
+		OTAAPIURL:             envOrDefault("OTA_API_URL", "https://ota.sol.muaathrifath.me"),
 	}
 
 	return cfg, nil

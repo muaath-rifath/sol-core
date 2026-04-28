@@ -133,7 +133,7 @@ func main() {
 
 	firmwareBuilder := firmware.NewBuilder(rdb, firmwareBuildRepo)
 	firmwareHandler := firmware.NewHandler(firmwareStore, firmwareVersionRepo, firmwareBuildRepo, firmwareBuilder)
-	deviceHandler := device.NewHandler(deviceSvc, firmwareStore, firmwareVersionRepo, certsSvc, cfg.PublicAPIURL)
+	deviceHandler := device.NewHandler(deviceSvc, firmwareStore, firmwareVersionRepo, certsSvc, cfg.PublicAPIURL, cfg.OTAAPIURL)
 
 	automationRepo := automation.NewRepository(pgPool)
 	automationSvc := automation.NewService(automationRepo, deviceSvc, aiClient)
@@ -235,6 +235,9 @@ func main() {
 
 	// Public OTA firmware download (no auth)
 	mux.HandleFunc("GET /api/v1/ota/firmware/{id}", firmwareHandler.DownloadByVersionID)
+
+	// Device OTA firmware download (mTLS protected)
+	mux.HandleFunc("GET /api/v1/ota/attempts/{attemptId}/firmware", deviceHandler.DownloadOTAFirmware)
 
 
 	// Internal build routes (for the worker)

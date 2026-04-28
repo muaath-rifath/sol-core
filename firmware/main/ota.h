@@ -13,8 +13,8 @@ typedef bool (*ota_cancel_cb_t)(void);
  * Downloads the binary, writes to inactive OTA partition, and reboots.
  * This function does not return on success (device reboots).
  */
-esp_err_t ota_start(const char *url, ota_progress_cb_t progress_cb,
-                    ota_cancel_cb_t cancel_cb);
+esp_err_t ota_start(const char *url, const char *client_cert, const char *client_key,
+                    ota_progress_cb_t progress_cb, ota_cancel_cb_t cancel_cb);
 
 /**
  * Call on boot to validate the running OTA image.

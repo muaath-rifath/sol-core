@@ -25,8 +25,8 @@ void ota_validate_image(void)
     }
 }
 
-esp_err_t ota_start(const char *url, ota_progress_cb_t progress_cb,
-                    ota_cancel_cb_t cancel_cb)
+esp_err_t ota_start(const char *url, const char *client_cert, const char *client_key,
+                    ota_progress_cb_t progress_cb, ota_cancel_cb_t cancel_cb)
 {
     ESP_LOGI(TAG, "Starting OTA from: %s", url);
     if (progress_cb) {
@@ -36,6 +36,8 @@ esp_err_t ota_start(const char *url, ota_progress_cb_t progress_cb,
     esp_http_client_config_t http_config = {
         .url = url,
         .crt_bundle_attach = esp_crt_bundle_attach,
+        .client_cert_pem = client_cert,
+        .client_key_pem = client_key,
         .timeout_ms = 30000,
         .keep_alive_enable = true,
     };

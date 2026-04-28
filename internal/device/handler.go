@@ -1,11 +1,15 @@
 package device
 
 import (
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -22,10 +26,11 @@ type Handler struct {
 	versionRepo   *firmware.VersionRepository
 	certsSvc      *certs.Service
 	publicAPIURL  string
+	otaAPIURL     string
 }
 
-func NewHandler(svc *Service, firmwareStore *firmware.Store, versionRepo *firmware.VersionRepository, certsSvc *certs.Service, publicAPIURL string) *Handler {
-	return &Handler{svc: svc, firmwareStore: firmwareStore, versionRepo: versionRepo, certsSvc: certsSvc, publicAPIURL: publicAPIURL}
+func NewHandler(svc *Service, firmwareStore *firmware.Store, versionRepo *firmware.VersionRepository, certsSvc *certs.Service, publicAPIURL string, otaAPIURL string) *Handler {
+	return &Handler{svc: svc, firmwareStore: firmwareStore, versionRepo: versionRepo, certsSvc: certsSvc, publicAPIURL: publicAPIURL, otaAPIURL: otaAPIURL}
 }
 
 func (h *Handler) Provision(w http.ResponseWriter, r *http.Request) {
@@ -344,8 +349,6 @@ func (h *Handler) OTA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := fmt.Sprintf("%s/api/v1/ota/firmware/%s", h.publicAPIURL, v.ID)
-
 	var requestedBy *string
 	if u := user.FromContext(r.Context()); u != nil {
 		requestedBy = &u.ID
@@ -356,13 +359,22 @@ func (h *Handler) OTA(w http.ResponseWriter, r *http.Request) {
 		idempotencyKey = &key
 	}
 
-	attempt, err := h.svc.TriggerOTA(r.Context(), d, homeID, roomID, v.ID, url, requestedBy, idempotencyKey)
+	// Will populate URL after creating attempt
+	attempt, err := h.svc.TriggerOTA(r.Context(), d, homeID, roomID, v.ID, requestedBy, idempotencyKey)
 	if err != nil {
 		slog.Error("trigger ota", "error", err)
 		if strings.Contains(strings.ToLower(err.Error()), "already in progress") {
 			http.Error(w, `{"error":"an OTA update is already in progress for this device"}`, http.StatusConflict)
 			return
 		}
+		http.Error(w, `{"error":"failed to send command"}`, http.StatusInternalServerError)
+		return
+	}
+
+	url := fmt.Sprintf("%s/api/v1/ota/attempts/%s/firmware", h.otaAPIURL, attempt.ID)
+	err = h.svc.SendOTACommand(r.Context(), d, attempt, url)
+	if err != nil {
+		slog.Error("trigger ota command", "error", err)
 		http.Error(w, `{"error":"failed to send command"}`, http.StatusInternalServerError)
 		return
 	}
@@ -472,15 +484,21 @@ func (h *Handler) RetryOTA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := fmt.Sprintf("%s/api/v1/ota/firmware/%s", h.publicAPIURL, v.ID)
-
 	requestedBy := &u.ID
-	attempt, err := h.svc.TriggerOTA(r.Context(), d, homeID, roomID, v.ID, url, requestedBy, nil)
+	attempt, err := h.svc.TriggerOTA(r.Context(), d, homeID, roomID, v.ID, requestedBy, nil)
 	if err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "already in progress") {
 			http.Error(w, `{"error":"an OTA update is already in progress for this device"}`, http.StatusConflict)
 			return
 		}
+		http.Error(w, `{"error":"failed to send command"}`, http.StatusInternalServerError)
+		return
+	}
+
+	url := fmt.Sprintf("%s/api/v1/ota/attempts/%s/firmware", h.otaAPIURL, attempt.ID)
+	err = h.svc.SendOTACommand(r.Context(), d, attempt, url)
+	if err != nil {
+		slog.Error("trigger ota command", "error", err)
 		http.Error(w, `{"error":"failed to send command"}`, http.StatusInternalServerError)
 		return
 	}
@@ -543,6 +561,82 @@ func (h *Handler) CancelOTA(w http.ResponseWriter, r *http.Request) {
 		"request_id": updated.RequestID,
 		"status":     updated.Status,
 	})
+}
+
+func (h *Handler) DownloadOTAFirmware(w http.ResponseWriter, r *http.Request) {
+	attemptID := r.PathValue("attemptId")
+	if attemptID == "" {
+		http.Error(w, `{"error":"attempt_id is required"}`, http.StatusBadRequest)
+		return
+	}
+
+	// Read and unescape the client cert from the header
+	certHeader := r.Header.Get("X-Forwarded-Tls-Client-Cert")
+	if certHeader == "" {
+		http.Error(w, `{"error":"client certificate required"}`, http.StatusUnauthorized)
+		return
+	}
+
+	certPEM, err := url.QueryUnescape(certHeader)
+	if err != nil {
+		slog.Error("unescape client cert", "error", err)
+		http.Error(w, `{"error":"invalid client certificate encoding"}`, http.StatusBadRequest)
+		return
+	}
+
+	block, _ := pem.Decode([]byte(certPEM))
+	if block == nil {
+		http.Error(w, `{"error":"failed to decode client certificate"}`, http.StatusBadRequest)
+		return
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		slog.Error("parse client cert", "error", err)
+		http.Error(w, `{"error":"invalid client certificate"}`, http.StatusBadRequest)
+		return
+	}
+
+	deviceID := cert.Subject.CommonName
+	if deviceID == "" {
+		http.Error(w, `{"error":"client certificate missing device identity"}`, http.StatusUnauthorized)
+		return
+	}
+
+	// Verify attempt
+	attempt, err := h.svc.GetOTAAttemptByID(r.Context(), attemptID)
+	if err != nil {
+		http.Error(w, `{"error":"attempt not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if attempt.DeviceID != deviceID {
+		http.Error(w, `{"error":"unauthorized for this attempt"}`, http.StatusForbidden)
+		return
+	}
+
+	if attempt.Status == OTAAttemptStatusCancelled || attempt.Status == OTAAttemptStatusTimedOut || attempt.Status == OTAAttemptStatusFailed {
+		http.Error(w, `{"error":"attempt is no longer active"}`, http.StatusGone)
+		return
+	}
+
+	// Get firmware
+	v, err := h.versionRepo.GetByID(r.Context(), attempt.FirmwareVersionID)
+	if err != nil {
+		http.Error(w, `{"error":"firmware version not found"}`, http.StatusNotFound)
+		return
+	}
+
+	reader, err := h.firmwareStore.Download(r.Context(), v.AppKey)
+	if err != nil {
+		http.Error(w, `{"error":"failed to download firmware image"}`, http.StatusInternalServerError)
+		return
+	}
+	defer reader.Close()
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s-app.bin", v.TemplateID, v.Version))
+	io.Copy(w, reader)
 }
 
 func (h *Handler) CreateAppliance(w http.ResponseWriter, r *http.Request) {
