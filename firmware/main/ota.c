@@ -4,6 +4,7 @@
 #include "esp_https_ota.h"
 #include "esp_ota_ops.h"
 #include "esp_http_client.h"
+#include "esp_crt_bundle.h"
 #include "esp_partition.h"
 #include "esp_app_format.h"
 
@@ -34,7 +35,9 @@ esp_err_t ota_start(const char *url, ota_progress_cb_t progress_cb,
 
     esp_http_client_config_t http_config = {
         .url = url,
+        .crt_bundle_attach = esp_crt_bundle_attach,
         .timeout_ms = 30000,
+        .keep_alive_enable = true,
     };
 
     esp_https_ota_config_t ota_config = {
