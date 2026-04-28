@@ -109,7 +109,17 @@ func main() {
 	roomHandler := room.NewHandler(roomSvc)
 
 	deviceRepo := device.NewRepository(pgPool)
-	deviceSvc := device.NewService(deviceRepo, roomSvc, mqttClient, hub)
+	otaAttemptRepo := device.NewOTAAttemptRepository(pgPool)
+	deviceSvc := device.NewService(
+		deviceRepo,
+		otaAttemptRepo,
+		roomSvc,
+		mqttClient,
+		hub,
+		time.Duration(cfg.OTAOnlineFreshnessSec)*time.Second,
+		time.Duration(cfg.OTAAttemptTimeoutSec)*time.Second,
+	)
+	go deviceSvc.RunOTAAttemptWatchdog(ctx)
 
 	// Certs Service
 	certsSvc, err := certs.NewService(cfg.CACertPath, cfg.CAKeyPath)
@@ -142,6 +152,12 @@ func main() {
 	}
 	if err := mqttClient.Subscribe("sol/devices/+/telemetry", 1); err != nil {
 		slog.Error("failed to subscribe to device telemetry", "error", err)
+	}
+	if err := mqttClient.Subscribe("sol/devices/+/ack", 1); err != nil {
+		slog.Error("failed to subscribe to device ack", "error", err)
+	}
+	if err := mqttClient.Subscribe("sol/devices/+/ota", 1); err != nil {
+		slog.Error("failed to subscribe to device ota status", "error", err)
 	}
 
 	// Routes
@@ -182,6 +198,9 @@ func main() {
 	mux.Handle("POST /api/v1/homes/{homeId}/rooms/{roomId}/devices", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.CreateInRoom)))
 	mux.Handle("POST /api/v1/homes/{homeId}/rooms/{roomId}/devices/{id}/command", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.Command)))
 	mux.Handle("POST /api/v1/homes/{homeId}/rooms/{roomId}/devices/{id}/ota", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.OTA)))
+	mux.Handle("GET /api/v1/homes/{homeId}/rooms/{roomId}/ota-attempts", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.ListOTAAttempts)))
+	mux.Handle("POST /api/v1/homes/{homeId}/rooms/{roomId}/ota-attempts/{attemptId}/retry", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.RetryOTA)))
+	mux.Handle("POST /api/v1/homes/{homeId}/rooms/{roomId}/ota-attempts/{attemptId}/cancel", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.CancelOTA)))
 
 	// Appliance routes
 	mux.Handle("POST /api/v1/appliances", authMiddleware.Wrap(http.HandlerFunc(deviceHandler.CreateAppliance)))

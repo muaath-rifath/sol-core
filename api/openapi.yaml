@@ -629,13 +629,12 @@ paths:
             schema:
               $ref: "#/components/schemas/OTARequest"
       responses:
-        "200":
+        "202":
           description: OTA update initiated
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
+                $ref: "#/components/schemas/OTAAttemptAcceptedResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -644,6 +643,91 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/homes/{homeId}/rooms/{roomId}/ota-attempts:
+    parameters:
+      - $ref: "#/components/parameters/HomeIdAlt"
+      - $ref: "#/components/parameters/RoomId"
+      - $ref: "#/components/parameters/Limit"
+    get:
+      tags: [Devices]
+      summary: List OTA attempts for a room
+      operationId: listRoomOTAAttempts
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of OTA attempts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OTAAttemptListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/homes/{homeId}/rooms/{roomId}/ota-attempts/{attemptId}/retry:
+    parameters:
+      - $ref: "#/components/parameters/HomeIdAlt"
+      - $ref: "#/components/parameters/RoomId"
+      - $ref: "#/components/parameters/OTAAttemptId"
+    post:
+      tags: [Devices]
+      summary: Retry an OTA attempt
+      operationId: retryRoomOTAAttempt
+      security:
+        - bearerAuth: []
+      responses:
+        "202":
+          description: Retry accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OTAAttemptAcceptedResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/homes/{homeId}/rooms/{roomId}/ota-attempts/{attemptId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/HomeIdAlt"
+      - $ref: "#/components/parameters/RoomId"
+      - $ref: "#/components/parameters/OTAAttemptId"
+    post:
+      tags: [Devices]
+      summary: Cancel an active OTA attempt
+      operationId: cancelRoomOTAAttempt
+      security:
+        - bearerAuth: []
+      responses:
+        "202":
+          description: Cancel accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OTAAttemptAcceptedResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
 
   /api/v1/devices:
     get:
@@ -1092,6 +1176,12 @@ components:
       required: true
       schema:
         type: string
+    OTAAttemptId:
+      name: attemptId
+      in: path
+      required: true
+      schema:
+        type: string
     AutomationId:
       name: id
       in: path
@@ -1520,6 +1610,98 @@ components:
       properties:
         firmware_version_id:
           type: string
+        idempotency_key:
+          type: string
+          description: Optional client-generated key to make trigger requests idempotent.
+
+    OTAAttemptAcceptedResponse:
+      type: object
+      required: [attempt_id, request_id, status]
+      properties:
+        attempt_id:
+          type: string
+        request_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/OTAAttemptStatus"
+
+    OTAAttemptListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/OTAAttempt"
+
+    OTATuning:
+      type: object
+      required: [online_freshness_seconds, attempt_timeout_seconds]
+      properties:
+        online_freshness_seconds:
+          type: integer
+        attempt_timeout_seconds:
+          type: integer
+
+    OTAAttemptStatus:
+      type: string
+      enum:
+        [initiated, acknowledged, downloading, verifying, updating, cancelling, cancelled, timed_out, updated, failed]
+
+    OTAAttempt:
+      type: object
+      required:
+        [
+          id,
+          device_id,
+          room_id,
+          home_id,
+          firmware_version_id,
+          request_id,
+          status,
+          progress_pct,
+          logs,
+          started_at,
+          created_at,
+          updated_at,
+        ]
+      properties:
+        id:
+          type: string
+        device_id:
+          type: string
+        room_id:
+          type: string
+        home_id:
+          type: string
+        firmware_version_id:
+          type: string
+        requested_by:
+          type: string
+        idempotency_key:
+          type: string
+        request_id:
+          type: string
+        status:
+          $ref: "#/components/schemas/OTAAttemptStatus"
+        progress_pct:
+          type: integer
+        logs:
+          type: string
+        error_text:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        finished_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
 
     Automation:
       type: object

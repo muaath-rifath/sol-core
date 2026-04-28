@@ -93,6 +93,11 @@ func ClaimsFromContext(ctx context.Context) *Claims {
 func extractBearerToken(r *http.Request) string {
 	authHeader := r.Header.Get("Authorization")
 	if !strings.HasPrefix(authHeader, "Bearer ") {
+		if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
+			if token := strings.TrimSpace(r.URL.Query().Get("token")); token != "" {
+				return token
+			}
+		}
 		return ""
 	}
 	return strings.TrimPrefix(authHeader, "Bearer ")
