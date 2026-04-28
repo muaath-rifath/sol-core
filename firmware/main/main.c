@@ -26,8 +26,12 @@ static esp_mqtt_client_handle_t s_mqtt_client = NULL;
 static char s_topic_state[128];
 static char s_topic_cmd[128];
 static char s_topic_ack[128];
+static char s_topic_ota[128];
 static char s_lwt_payload[160];
 static char s_device_id[RUNTIME_DEVICE_ID_MAX_LEN + 1];
+static char s_last_ota_request_id[80];
+static volatile bool s_ota_cancel_requested = false;
+static volatile bool s_ota_in_progress = false;
 static TickType_t s_last_state_publish_tick = 0;
 static bool s_mqtt_connected = false;
 static runtime_template_mode_t s_template_mode = RUNTIME_TEMPLATE_RGB_LED;
@@ -38,6 +42,44 @@ static bool s_relay_logical_states[RUNTIME_RELAY_CHANNELS_MAX] = {false, false,
 #define STATE_HEARTBEAT_INTERVAL_MS 2000
 
 static bool template_supports_relay(void);
+
+static bool ota_cancel_requested_cb(void) { return s_ota_cancel_requested; }
+
+static void publish_ota_status(const char *status, int progress,
+                               const char *message, const char *error) {
+  if (!s_mqtt_client || s_last_ota_request_id[0] == '\0') {
+    return;
+  }
+
+  cJSON *root = cJSON_CreateObject();
+  if (!root) {
+    return;
+  }
+
+  cJSON_AddStringToObject(root, "requestId", s_last_ota_request_id);
+  cJSON_AddStringToObject(root, "status", status ? status : "downloading");
+  cJSON_AddNumberToObject(root, "progress", progress);
+  if (message) {
+    cJSON_AddStringToObject(root, "message", message);
+    cJSON_AddStringToObject(root, "log", message);
+  }
+  if (error && error[0] != '\0') {
+    cJSON_AddStringToObject(root, "error", error);
+  }
+  cJSON_AddNumberToObject(root, "ts", (double)esp_log_timestamp());
+
+  char *payload = cJSON_PrintUnformatted(root);
+  cJSON_Delete(root);
+  if (!payload) {
+    return;
+  }
+
+  int msg_id = esp_mqtt_client_publish(s_mqtt_client, s_topic_ota, payload, 0, 1, 0);
+  if (msg_id < 0) {
+    ESP_LOGW(TAG, "Failed to publish OTA status");
+  }
+  cJSON_free(payload);
+}
 
 static void publish_state(bool online) {
   if (!s_mqtt_client) {
@@ -165,10 +207,19 @@ static void ota_task(void *param) {
     return;
   }
 
-  esp_err_t ret = ota_start(url);
-  if (ret != ESP_OK) {
+  s_ota_in_progress = true;
+  s_ota_cancel_requested = false;
+
+  esp_err_t ret = ota_start(url, publish_ota_status, ota_cancel_requested_cb);
+  if (ret != ESP_OK && !s_ota_cancel_requested) {
     ESP_LOGE(TAG, "OTA failed: %s", esp_err_to_name(ret));
+    publish_ota_status("failed", 0, "OTA failed", esp_err_to_name(ret));
+  } else if (s_ota_cancel_requested) {
+    publish_ota_status("cancelled", 0, "OTA cancelled by user", NULL);
   }
+
+  s_ota_in_progress = false;
+  s_ota_cancel_requested = false;
   free(url);
   vTaskDelete(NULL);
 }
@@ -274,13 +325,57 @@ static void handle_command_json(const char *json_text) {
     }
   } else if (strcmp(action, "ota_update") == 0) {
     const cJSON *url_obj = cJSON_GetObjectItemCaseSensitive(params, "url");
+    const cJSON *req_id_obj =
+        cJSON_GetObjectItemCaseSensitive(params, "request_id");
+    if (cJSON_IsString(req_id_obj) && req_id_obj->valuestring[0] != '\0') {
+      strncpy(s_last_ota_request_id, req_id_obj->valuestring,
+              sizeof(s_last_ota_request_id) - 1);
+      s_last_ota_request_id[sizeof(s_last_ota_request_id) - 1] = '\0';
+    } else {
+      strncpy(s_last_ota_request_id, req_id, sizeof(s_last_ota_request_id) - 1);
+      s_last_ota_request_id[sizeof(s_last_ota_request_id) - 1] = '\0';
+    }
     if (cJSON_IsString(url_obj)) {
+      if (s_ota_in_progress) {
+        publish_ack(s_last_ota_request_id, false, "OTA already in progress");
+        publish_ota_status("failed", 0, "OTA already in progress", "busy");
+        cJSON_Delete(root);
+        return;
+      }
       char *url = strdup(url_obj->valuestring);
-      publish_ack(req_id, true, "OTA update started");
+      publish_ack(s_last_ota_request_id, true, "OTA update started");
+      publish_ota_status("acknowledged", 3, "OTA command acknowledged", NULL);
       xTaskCreate(ota_task, "ota_task", 8192, url, 5, NULL);
     } else {
-      publish_ack(req_id, false, "missing OTA URL");
+      publish_ack(s_last_ota_request_id, false, "missing OTA URL");
+      publish_ota_status("failed", 0, "missing OTA URL", "missing OTA URL");
     }
+  } else if (strcmp(action, "ota_cancel") == 0) {
+    const cJSON *req_id_obj =
+        cJSON_GetObjectItemCaseSensitive(params, "request_id");
+    const char *cancel_id =
+        cJSON_IsString(req_id_obj) ? req_id_obj->valuestring : req_id;
+
+    if (cancel_id && cancel_id[0] != '\0' &&
+        s_last_ota_request_id[0] != '\0' &&
+        strcmp(cancel_id, s_last_ota_request_id) != 0) {
+      publish_ack(cancel_id, false, "request id does not match active OTA");
+      publish_ota_status("failed", 0, "cancel rejected: request id mismatch",
+                         "request id mismatch");
+      cJSON_Delete(root);
+      return;
+    }
+
+    if (!s_ota_in_progress) {
+      publish_ack(cancel_id, false, "no active OTA in progress");
+      publish_ota_status("failed", 0, "no active OTA in progress", "idle");
+      cJSON_Delete(root);
+      return;
+    }
+
+    s_ota_cancel_requested = true;
+    publish_ack(cancel_id, true, "OTA cancellation requested");
+    publish_ota_status("cancelling", 0, "OTA cancellation requested", NULL);
   } else {
     publish_ack(req_id, false, "unknown command");
   }
@@ -387,6 +482,7 @@ void app_main(void) {
            s_device_id);
   snprintf(s_topic_cmd, sizeof(s_topic_cmd), "sol/devices/%s/cmd", s_device_id);
   snprintf(s_topic_ack, sizeof(s_topic_ack), "sol/devices/%s/ack", s_device_id);
+  snprintf(s_topic_ota, sizeof(s_topic_ota), "sol/devices/%s/ota", s_device_id);
 
   snprintf(s_lwt_payload, sizeof(s_lwt_payload),
            "{\"deviceId\":\"%s\",\"name\":\"ESP32 LED "

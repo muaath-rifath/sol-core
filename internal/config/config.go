@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 )
 
 type Config struct {
@@ -42,31 +43,37 @@ type Config struct {
 
 	// FrontendURL is used to construct invite links in emails
 	FrontendURL string
+
+	// OTA safety/tuning
+	OTAOnlineFreshnessSec int
+	OTAAttemptTimeoutSec  int
 }
 
 func Load() (*Config, error) {
 	cfg := &Config{
-		Port:           envOrDefault("PORT", "8080"),
-		DatabaseURL:    envOrDefault("DATABASE_URL", "postgres://sol:sol@localhost:5432/sol?sslmode=disable"),
-		RedisURL:       envOrDefault("REDIS_URL", "redis://localhost:6379/0"),
-		MQTTBrokerURL:  envOrDefault("MQTT_BROKER_URL", "ssl://mqtt.sol.muaathrifath.me:8883"),
-		MQTTClientID:   envOrDefault("MQTT_CLIENT_ID", "sol-backend"),
-		MQTTUsername:   os.Getenv("MQTT_USERNAME"),
-		MQTTPassword:   os.Getenv("MQTT_PASSWORD"),
-		CACertPath:     os.Getenv("CA_CERT_PATH"),
-		CAKeyPath:      os.Getenv("CA_KEY_PATH"),
-		ClientCertPath: os.Getenv("CLIENT_CERT_PATH"),
-		ClientKeyPath:  os.Getenv("CLIENT_KEY_PATH"),
-		MinioEndpoint:  envOrDefault("MINIO_ENDPOINT", "localhost:9000"),
-		MinioAccessKey: envOrDefault("MINIO_ACCESS_KEY", "minioadmin"),
-		MinioSecretKey: envOrDefault("MINIO_SECRET_KEY", "minioadmin"),
-		MinioUseSSL:    os.Getenv("MINIO_USE_SSL") == "true",
-		MinioBucket:    envOrDefault("MINIO_BUCKET", "firmware"),
-		AIServiceURL:   envOrDefault("AI_SERVICE_URL", "http://localhost:8000"),
-		BrevoAPIKey:    os.Getenv("BREVO_API_KEY"),
-		BrevoSenderEmail: envOrDefault("BREVO_SENDER_EMAIL", "noreply@sol.app"),
-		BrevoSenderName:  envOrDefault("BREVO_SENDER_NAME", "Sol"),
-		FrontendURL:      envOrDefault("FRONTEND_URL", "http://localhost:3000"),
+		Port:                  envOrDefault("PORT", "8080"),
+		DatabaseURL:           envOrDefault("DATABASE_URL", "postgres://sol:sol@localhost:5432/sol?sslmode=disable"),
+		RedisURL:              envOrDefault("REDIS_URL", "redis://localhost:6379/0"),
+		MQTTBrokerURL:         envOrDefault("MQTT_BROKER_URL", "ssl://mqtt.sol.muaathrifath.me:8883"),
+		MQTTClientID:          envOrDefault("MQTT_CLIENT_ID", "sol-backend"),
+		MQTTUsername:          os.Getenv("MQTT_USERNAME"),
+		MQTTPassword:          os.Getenv("MQTT_PASSWORD"),
+		CACertPath:            os.Getenv("CA_CERT_PATH"),
+		CAKeyPath:             os.Getenv("CA_KEY_PATH"),
+		ClientCertPath:        os.Getenv("CLIENT_CERT_PATH"),
+		ClientKeyPath:         os.Getenv("CLIENT_KEY_PATH"),
+		MinioEndpoint:         envOrDefault("MINIO_ENDPOINT", "localhost:9000"),
+		MinioAccessKey:        envOrDefault("MINIO_ACCESS_KEY", "minioadmin"),
+		MinioSecretKey:        envOrDefault("MINIO_SECRET_KEY", "minioadmin"),
+		MinioUseSSL:           os.Getenv("MINIO_USE_SSL") == "true",
+		MinioBucket:           envOrDefault("MINIO_BUCKET", "firmware"),
+		AIServiceURL:          envOrDefault("AI_SERVICE_URL", "http://localhost:8000"),
+		BrevoAPIKey:           os.Getenv("BREVO_API_KEY"),
+		BrevoSenderEmail:      envOrDefault("BREVO_SENDER_EMAIL", "noreply@sol.app"),
+		BrevoSenderName:       envOrDefault("BREVO_SENDER_NAME", "Sol"),
+		FrontendURL:           envOrDefault("FRONTEND_URL", "http://localhost:3000"),
+		OTAOnlineFreshnessSec: envIntOrDefault("OTA_ONLINE_FRESHNESS_SEC", 45),
+		OTAAttemptTimeoutSec:  envIntOrDefault("OTA_ATTEMPT_TIMEOUT_SEC", 480),
 	}
 
 	return cfg, nil
@@ -77,4 +84,16 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envIntOrDefault(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return fallback
+	}
+	return n
 }

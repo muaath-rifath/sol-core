@@ -33,13 +33,15 @@ const (
 )
 
 type Command struct {
-	DeviceID string         `json:"device_id"`
-	Action   string         `json:"action"`
-	Params   map[string]any `json:"params,omitempty"`
+	DeviceID  string         `json:"device_id"`
+	RequestID string         `json:"requestId,omitempty"`
+	Action    string         `json:"action"`
+	Params    map[string]any `json:"params,omitempty"`
 }
 
 type OTARequest struct {
 	FirmwareVersionID string `json:"firmware_version_id"`
+	IdempotencyKey    string `json:"idempotency_key,omitempty"`
 	URL               string `json:"url,omitempty"`
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -68,14 +69,38 @@ func buildCursorResponse[T any](items []T, limit int, cursorFn func(T) (time.Tim
 }
 
 type Service struct {
-	repo    *Repository
-	roomSvc *room.Service
-	mqtt    *mqtt.Client
-	hub     *ws.Hub
+	repo              *Repository
+	otaRepo           *OTAAttemptRepository
+	roomSvc           *room.Service
+	mqtt              *mqtt.Client
+	hub               *ws.Hub
+	onlineFreshness   time.Duration
+	otaAttemptTimeout time.Duration
 }
 
-func NewService(repo *Repository, roomSvc *room.Service, mqttClient *mqtt.Client, hub *ws.Hub) *Service {
-	return &Service{repo: repo, roomSvc: roomSvc, mqtt: mqttClient, hub: hub}
+func NewService(repo *Repository, otaRepo *OTAAttemptRepository, roomSvc *room.Service, mqttClient *mqtt.Client, hub *ws.Hub, onlineFreshness time.Duration, otaAttemptTimeout time.Duration) *Service {
+	if onlineFreshness <= 0 {
+		onlineFreshness = 45 * time.Second
+	}
+	if otaAttemptTimeout <= 0 {
+		otaAttemptTimeout = 8 * time.Minute
+	}
+	return &Service{
+		repo:              repo,
+		otaRepo:           otaRepo,
+		roomSvc:           roomSvc,
+		mqtt:              mqttClient,
+		hub:               hub,
+		onlineFreshness:   onlineFreshness,
+		otaAttemptTimeout: otaAttemptTimeout,
+	}
+}
+
+func (s *Service) OnlineFreshness() time.Duration {
+	if s.onlineFreshness <= 0 {
+		return 45 * time.Second
+	}
+	return s.onlineFreshness
 }
 
 func (s *Service) Create(ctx context.Context, req CreateDeviceRequest) (*Device, error) {
@@ -171,25 +196,399 @@ func (s *Service) SendCommand(ctx context.Context, cmd Command) error {
 	return s.mqtt.Publish(topic, cmd)
 }
 
-func (s *Service) TriggerOTA(ctx context.Context, deviceID string, url string) error {
-	d, err := s.repo.GetByID(ctx, deviceID)
-	if err == nil && d.RoomID != "" {
+func (s *Service) TriggerOTA(ctx context.Context, d *Device, homeID, roomID, firmwareVersionID, url string, requestedBy *string, idempotencyKey *string) (*OTAAttempt, error) {
+	if d == nil {
+		return nil, fmt.Errorf("device is required")
+	}
+
+	if idempotencyKey != nil && strings.TrimSpace(*idempotencyKey) != "" {
+		existing, err := s.otaRepo.GetByIdempotencyKey(ctx, strings.TrimSpace(*idempotencyKey))
+		if err == nil {
+			return existing, nil
+		}
+	}
+
+	hasActive, err := s.otaRepo.HasActiveForDevice(ctx, d.ID)
+	if err != nil {
+		return nil, err
+	}
+	if hasActive {
+		return nil, fmt.Errorf("another ota update is already in progress")
+	}
+
+	now := time.Now()
+	attempt := &OTAAttempt{
+		ID:                uuid.NewString(),
+		DeviceID:          d.ID,
+		RoomID:            roomID,
+		HomeID:            homeID,
+		FirmwareVersionID: firmwareVersionID,
+		RequestedBy:       requestedBy,
+		IdempotencyKey:    idempotencyKey,
+		RequestID:         uuid.NewString(),
+		Status:            OTAAttemptStatusInitiated,
+		ProgressPct:       0,
+		Logs:              "OTA request accepted by server",
+		StartedAt:         now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+
+	if err := s.otaRepo.Create(ctx, attempt); err != nil {
+		return nil, err
+	}
+
+	topic := fmt.Sprintf("sol/devices/%s/cmd", d.ID)
+	if err := s.mqtt.Publish(topic, Command{
+		DeviceID:  d.ID,
+		RequestID: attempt.RequestID,
+		Action:    "ota_update",
+		Params: map[string]any{
+			"url":        url,
+			"request_id": attempt.RequestID,
+		},
+	}); err != nil {
+		msg := err.Error()
+		finishedAt := time.Now()
+		_ = s.otaRepo.AppendLog(ctx, attempt.RequestID, "Failed to publish OTA command: "+msg)
+		_ = s.otaRepo.UpdateProgress(ctx, attempt.RequestID, OTAAttemptStatusFailed, 0, &msg, &finishedAt)
+		return nil, err
+	}
+
+	if roomID != "" {
 		_ = s.roomSvc.InsertActivityLog(ctx, &room.ActivityLog{
-			RoomID:      d.RoomID,
+			RoomID:      roomID,
 			Timestamp:   time.Now(),
-			Title:       "OTA Firmware Update Triggered",
-			Description: fmt.Sprintf("Triggered via web interface for %s", d.Name),
-			BadgeText:   "Success",
+			Title:       "OTA Flash Started",
+			Description: fmt.Sprintf("Started OTA flashing for %s", d.Name),
+			BadgeText:   "Started",
 			BadgeColor:  "bg-tertiary-fixed text-on-tertiary-fixed",
 		})
 	}
 
-	topic := fmt.Sprintf("sol/devices/%s/cmd", deviceID)
-	return s.mqtt.Publish(topic, Command{
-		DeviceID: deviceID,
-		Action:   "ota_update",
-		Params:   map[string]any{"url": url},
-	})
+	s.hub.Broadcast("ota.attempt.updated", attempt)
+	return attempt, nil
+}
+
+func isOTATerminalStatus(status OTAAttemptStatus) bool {
+	switch status {
+	case OTAAttemptStatusUpdated, OTAAttemptStatusFailed, OTAAttemptStatusCancelled, OTAAttemptStatusTimedOut:
+		return true
+	default:
+		return false
+	}
+}
+
+func isOTACancellableStatus(status OTAAttemptStatus) bool {
+	switch status {
+	case OTAAttemptStatusInitiated, OTAAttemptStatusAcknowledged, OTAAttemptStatusDownloading, OTAAttemptStatusVerifying, OTAAttemptStatusUpdating:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Service) CancelOTAAttempt(ctx context.Context, attempt *OTAAttempt) (*OTAAttempt, error) {
+	if attempt == nil {
+		return nil, fmt.Errorf("attempt is required")
+	}
+	if !isOTACancellableStatus(attempt.Status) {
+		if isOTATerminalStatus(attempt.Status) {
+			return attempt, nil
+		}
+		return nil, fmt.Errorf("attempt is not cancellable")
+	}
+
+	if err := s.otaRepo.AppendLog(ctx, attempt.RequestID, "Cancel requested by user"); err != nil {
+		return nil, err
+	}
+	if err := s.otaRepo.UpdateProgress(ctx, attempt.RequestID, OTAAttemptStatusCancelling, attempt.ProgressPct, nil, nil); err != nil {
+		return nil, err
+	}
+
+	topic := fmt.Sprintf("sol/devices/%s/cmd", attempt.DeviceID)
+	if err := s.mqtt.Publish(topic, Command{
+		DeviceID:  attempt.DeviceID,
+		RequestID: attempt.RequestID,
+		Action:    "ota_cancel",
+		Params: map[string]any{
+			"request_id": attempt.RequestID,
+		},
+	}); err != nil {
+		_ = s.otaRepo.AppendLog(ctx, attempt.RequestID, "Failed to publish cancel command: "+err.Error())
+		return nil, err
+	}
+
+	updated, err := s.otaRepo.GetByRequestID(ctx, attempt.RequestID)
+	if err != nil {
+		return nil, err
+	}
+	s.hub.Broadcast("ota.attempt.updated", updated)
+	return updated, nil
+}
+
+func (s *Service) RunOTAAttemptWatchdog(ctx context.Context) {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.beforeOTATriggerSweep(context.Background())
+		}
+	}
+}
+
+func (s *Service) beforeOTATriggerSweep(ctx context.Context) {
+	cutoff := time.Now().Add(-s.otaAttemptTimeout)
+	stale, err := s.otaRepo.ListStaleActive(ctx, cutoff, 200)
+	if err != nil {
+		slog.Error("ota watchdog list stale", "error", err)
+		return
+	}
+
+	for _, a := range stale {
+		errorText := "OTA attempt timed out waiting for device progress"
+		now := time.Now()
+		_ = s.otaRepo.AppendLog(ctx, a.RequestID, "Watchdog timeout: no OTA progress within timeout window")
+		_ = s.otaRepo.UpdateProgress(ctx, a.RequestID, OTAAttemptStatusTimedOut, a.ProgressPct, &errorText, &now)
+
+		latest, err := s.otaRepo.GetByRequestID(ctx, a.RequestID)
+		if err == nil {
+			s.hub.Broadcast("ota.attempt.updated", latest)
+		}
+
+		_ = s.roomSvc.InsertActivityLog(ctx, &room.ActivityLog{
+			RoomID:      a.RoomID,
+			Timestamp:   now,
+			Title:       "OTA Flash Timed Out",
+			Description: errorText,
+			BadgeText:   "Timeout",
+			BadgeColor:  "bg-error-container text-on-error-container",
+		})
+	}
+}
+
+func (s *Service) ListOTAAttemptsByRoom(ctx context.Context, roomID string, limit int) ([]OTAAttempt, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	return s.otaRepo.ListByRoom(ctx, roomID, limit)
+}
+
+func (s *Service) GetOTAAttemptByID(ctx context.Context, attemptID string) (*OTAAttempt, error) {
+	return s.otaRepo.GetByID(ctx, attemptID)
+}
+
+func (s *Service) HandleCommandAck(_ context.Context, deviceID string, ack map[string]any) error {
+	requestID, _ := ack["requestId"].(string)
+	if requestID == "" {
+		requestID, _ = ack["request_id"].(string)
+	}
+	if requestID == "" {
+		return nil
+	}
+
+	message, _ := ack["message"].(string)
+	ok, _ := ack["ok"].(bool)
+
+	if message != "" {
+		_ = s.otaRepo.AppendLog(context.Background(), requestID, "ACK: "+message)
+	}
+
+	attempt, _ := s.otaRepo.GetByRequestID(context.Background(), requestID)
+
+	if ok {
+		nextStatus := OTAAttemptStatusAcknowledged
+		nextProgress := 5
+		if attempt != nil && attempt.Status == OTAAttemptStatusCancelling {
+			nextStatus = OTAAttemptStatusCancelled
+			nextProgress = attempt.ProgressPct
+		}
+		finishedAt := (*time.Time)(nil)
+		if nextStatus == OTAAttemptStatusCancelled {
+			now := time.Now()
+			finishedAt = &now
+		}
+		if err := s.otaRepo.UpdateProgress(context.Background(), requestID, nextStatus, nextProgress, nil, finishedAt); err != nil {
+			return err
+		}
+	} else {
+		errorText := message
+		if errorText == "" {
+			errorText = "device rejected command"
+		}
+		finishedAt := time.Now()
+		if err := s.otaRepo.UpdateProgress(context.Background(), requestID, OTAAttemptStatusFailed, 0, &errorText, &finishedAt); err != nil {
+			return err
+		}
+	}
+
+	attempt, err := s.otaRepo.GetByRequestID(context.Background(), requestID)
+	if err == nil {
+		s.hub.Broadcast("ota.attempt.updated", attempt)
+		if !ok {
+			_ = s.roomSvc.InsertActivityLog(context.Background(), &room.ActivityLog{
+				RoomID:      attempt.RoomID,
+				Timestamp:   time.Now(),
+				Title:       "OTA Flash Failed",
+				Description: message,
+				BadgeText:   "Failed",
+				BadgeColor:  "bg-error-container text-on-error-container",
+			})
+		}
+		if ok && attempt.Status == OTAAttemptStatusCancelled {
+			_ = s.otaRepo.AppendLog(context.Background(), requestID, "ACK: OTA cancellation confirmed")
+			_ = s.roomSvc.InsertActivityLog(context.Background(), &room.ActivityLog{
+				RoomID:      attempt.RoomID,
+				Timestamp:   time.Now(),
+				Title:       "OTA Flash Cancelled",
+				Description: "OTA cancelled by user",
+				BadgeText:   "Cancelled",
+				BadgeColor:  "bg-secondary-container text-on-secondary-container",
+			})
+		}
+	}
+
+	_ = deviceID
+	return nil
+}
+
+func mapOTAStatus(raw string) OTAAttemptStatus {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	s = strings.ReplaceAll(s, "-", "_")
+	s = strings.ReplaceAll(s, " ", "_")
+	if strings.Contains(s, "timed_out") || strings.Contains(s, "timeout") {
+		return OTAAttemptStatusTimedOut
+	}
+	if strings.Contains(s, "cancelled") || strings.Contains(s, "canceled") {
+		return OTAAttemptStatusCancelled
+	}
+	if strings.Contains(s, "cancelling") || strings.Contains(s, "canceling") {
+		return OTAAttemptStatusCancelling
+	}
+	if strings.Contains(s, "download") {
+		return OTAAttemptStatusDownloading
+	}
+	if strings.Contains(s, "verif") {
+		return OTAAttemptStatusVerifying
+	}
+	if strings.Contains(s, "updat") || strings.Contains(s, "flash") {
+		return OTAAttemptStatusUpdating
+	}
+	if strings.Contains(s, "done") || strings.Contains(s, "success") || strings.Contains(s, "updated") || strings.Contains(s, "reboot") {
+		return OTAAttemptStatusUpdated
+	}
+	if strings.Contains(s, "fail") || strings.Contains(s, "error") {
+		return OTAAttemptStatusFailed
+	}
+	return OTAAttemptStatusDownloading
+}
+
+func (s *Service) HandleOTAStatus(_ context.Context, _ string, payload map[string]any) error {
+	requestID, _ := payload["requestId"].(string)
+	if requestID == "" {
+		return nil
+	}
+
+	statusRaw, _ := payload["status"].(string)
+	status := mapOTAStatus(statusRaw)
+
+	progress := 0
+	switch v := payload["progress"].(type) {
+	case float64:
+		progress = int(v)
+	case int:
+		progress = v
+	}
+	if progress < 0 {
+		progress = 0
+	}
+	if progress > 100 {
+		progress = 100
+	}
+
+	var errorText *string
+	if v, ok := payload["error"].(string); ok && strings.TrimSpace(v) != "" {
+		t := strings.TrimSpace(v)
+		errorText = &t
+	}
+
+	finishedAt := (*time.Time)(nil)
+	if isOTATerminalStatus(status) {
+		now := time.Now()
+		finishedAt = &now
+	}
+
+	line := ""
+	if v, ok := payload["log"].(string); ok {
+		line = strings.TrimSpace(v)
+	}
+	if line == "" {
+		if v, ok := payload["message"].(string); ok {
+			line = strings.TrimSpace(v)
+		}
+	}
+	if line != "" {
+		_ = s.otaRepo.AppendLog(context.Background(), requestID, line)
+	}
+
+	if err := s.otaRepo.UpdateProgress(context.Background(), requestID, status, progress, errorText, finishedAt); err != nil {
+		return err
+	}
+
+	attempt, err := s.otaRepo.GetByRequestID(context.Background(), requestID)
+	if err == nil {
+		s.hub.Broadcast("ota.attempt.updated", attempt)
+		if status == OTAAttemptStatusUpdated {
+			_ = s.roomSvc.InsertActivityLog(context.Background(), &room.ActivityLog{
+				RoomID:      attempt.RoomID,
+				Timestamp:   time.Now(),
+				Title:       "OTA Flash Complete",
+				Description: "Device updated and rebooted successfully",
+				BadgeText:   "Success",
+				BadgeColor:  "bg-tertiary-fixed text-on-tertiary-fixed",
+			})
+		}
+		if status == OTAAttemptStatusFailed {
+			detail := "OTA update failed"
+			if errorText != nil {
+				detail = *errorText
+			}
+			_ = s.roomSvc.InsertActivityLog(context.Background(), &room.ActivityLog{
+				RoomID:      attempt.RoomID,
+				Timestamp:   time.Now(),
+				Title:       "OTA Flash Failed",
+				Description: detail,
+				BadgeText:   "Failed",
+				BadgeColor:  "bg-error-container text-on-error-container",
+			})
+		}
+		if status == OTAAttemptStatusCancelled {
+			_ = s.roomSvc.InsertActivityLog(context.Background(), &room.ActivityLog{
+				RoomID:      attempt.RoomID,
+				Timestamp:   time.Now(),
+				Title:       "OTA Flash Cancelled",
+				Description: "OTA cancelled by user",
+				BadgeText:   "Cancelled",
+				BadgeColor:  "bg-secondary-container text-on-secondary-container",
+			})
+		}
+		if status == OTAAttemptStatusTimedOut {
+			_ = s.roomSvc.InsertActivityLog(context.Background(), &room.ActivityLog{
+				RoomID:      attempt.RoomID,
+				Timestamp:   time.Now(),
+				Title:       "OTA Flash Timed Out",
+				Description: "No OTA progress before timeout window",
+				BadgeText:   "Timeout",
+				BadgeColor:  "bg-error-container text-on-error-container",
+			})
+		}
+	}
+
+	return nil
 }
 
 func (s *Service) HandleStateUpdate(ctx context.Context, deviceID string, state map[string]any) error {

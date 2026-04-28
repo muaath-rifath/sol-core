@@ -1,9 +1,11 @@
 #include "ota.h"
 
 #include "esp_log.h"
+#include "esp_https_ota.h"
 #include "esp_ota_ops.h"
 #include "esp_http_client.h"
 #include "esp_partition.h"
+#include "esp_app_format.h"
 
 #define OTA_BUF_SIZE 4096
 
@@ -22,93 +24,114 @@ void ota_validate_image(void)
     }
 }
 
-esp_err_t ota_start(const char *url)
+esp_err_t ota_start(const char *url, ota_progress_cb_t progress_cb,
+                    ota_cancel_cb_t cancel_cb)
 {
     ESP_LOGI(TAG, "Starting OTA from: %s", url);
+    if (progress_cb) {
+        progress_cb("initiated", 0, "Starting OTA", NULL);
+    }
 
     esp_http_client_config_t http_config = {
         .url = url,
         .timeout_ms = 30000,
     };
 
-    esp_http_client_handle_t client = esp_http_client_init(&http_config);
-    if (!client) {
-        ESP_LOGE(TAG, "Failed to init HTTP client");
-        return ESP_FAIL;
-    }
+    esp_https_ota_config_t ota_config = {
+        .http_config = &http_config,
+    };
 
-    esp_err_t err = esp_http_client_open(client, 0);
+    esp_https_ota_handle_t ota_handle = NULL;
+    esp_err_t err = esp_https_ota_begin(&ota_config, &ota_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to open HTTP connection: %s", esp_err_to_name(err));
-        esp_http_client_cleanup(client);
-        return err;
-    }
-
-    int content_length = esp_http_client_fetch_headers(client);
-    ESP_LOGI(TAG, "Firmware size: %d bytes", content_length);
-
-    const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
-    if (!update_partition) {
-        ESP_LOGE(TAG, "No OTA partition available");
-        esp_http_client_cleanup(client);
-        return ESP_FAIL;
-    }
-
-    ESP_LOGI(TAG, "Writing to partition: %s (offset 0x%lx)",
-             update_partition->label, update_partition->address);
-
-    esp_ota_handle_t ota_handle;
-    err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_begin failed: %s", esp_err_to_name(err));
-        esp_http_client_cleanup(client);
-        return err;
-    }
-
-    char *buf = malloc(OTA_BUF_SIZE);
-    if (!buf) {
-        ESP_LOGE(TAG, "Failed to allocate OTA buffer");
-        esp_ota_abort(ota_handle);
-        esp_http_client_cleanup(client);
-        return ESP_ERR_NO_MEM;
-    }
-
-    int total_read = 0;
-    int data_read;
-    while ((data_read = esp_http_client_read(client, buf, OTA_BUF_SIZE)) > 0) {
-        err = esp_ota_write(ota_handle, buf, data_read);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "esp_ota_write failed: %s", esp_err_to_name(err));
-            break;
+        ESP_LOGE(TAG, "esp_https_ota_begin failed: %s", esp_err_to_name(err));
+        if (progress_cb) {
+            progress_cb("failed", 0, "Failed to begin OTA", esp_err_to_name(err));
         }
-        total_read += data_read;
-    }
-
-    free(buf);
-    esp_http_client_cleanup(client);
-
-    if (err != ESP_OK || data_read < 0) {
-        ESP_LOGE(TAG, "OTA download failed");
-        esp_ota_abort(ota_handle);
-        return ESP_FAIL;
-    }
-
-    ESP_LOGI(TAG, "Downloaded %d bytes", total_read);
-
-    err = esp_ota_end(ota_handle);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_end failed: %s", esp_err_to_name(err));
         return err;
     }
 
-    err = esp_ota_set_boot_partition(update_partition);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_ota_set_boot_partition failed: %s", esp_err_to_name(err));
-        return err;
+    int last_progress = 5;
+    if (progress_cb) {
+        progress_cb("downloading", 5, "Downloading firmware image", NULL);
     }
 
-    ESP_LOGI(TAG, "OTA successful, rebooting...");
-    esp_restart();
+    bool header_checked = false;
+    while (1) {
+        if (cancel_cb && cancel_cb()) {
+            ESP_LOGW(TAG, "OTA cancelled by command");
+            esp_https_ota_abort(ota_handle);
+            if (progress_cb) {
+                progress_cb("cancelled", last_progress, "OTA cancelled by user", NULL);
+            }
+            return ESP_ERR_INVALID_STATE;
+        }
 
-    return ESP_OK; // unreachable
+        err = esp_https_ota_perform(ota_handle);
+        if (err != ESP_OK && err != ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
+            ESP_LOGE(TAG, "esp_https_ota_perform failed: %s", esp_err_to_name(err));
+            esp_https_ota_abort(ota_handle);
+            if (progress_cb) {
+                progress_cb("failed", last_progress, "OTA download failed", esp_err_to_name(err));
+            }
+            return err;
+        }
+
+        int total_read = esp_https_ota_get_image_len_read(ota_handle);
+        if (!header_checked && total_read >= (int)(sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t))) {
+            if (progress_cb) {
+                progress_cb("verifying", 20, "Firmware header verified", NULL);
+            }
+            header_checked = true;
+        }
+
+        if (err == ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
+            if (progress_cb) {
+                int dynamic = 20 + ((total_read / OTA_BUF_SIZE) % 70);
+                if (dynamic < last_progress) {
+                    dynamic = last_progress;
+                }
+                if (dynamic > 90) {
+                    dynamic = 90;
+                }
+                if (dynamic != last_progress) {
+                    last_progress = dynamic;
+                    progress_cb("downloading", dynamic, "Writing firmware blocks", NULL);
+                }
+            }
+            continue;
+        }
+
+        if (!esp_https_ota_is_complete_data_received(ota_handle)) {
+            ESP_LOGE(TAG, "Complete OTA data was not received");
+            esp_https_ota_abort(ota_handle);
+            if (progress_cb) {
+                progress_cb("failed", last_progress, "Incomplete OTA data", "incomplete data");
+            }
+            return ESP_FAIL;
+        }
+
+        err = esp_https_ota_finish(ota_handle);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "esp_https_ota_finish failed: %s", esp_err_to_name(err));
+            if (progress_cb) {
+                progress_cb("failed", last_progress, "OTA image validation failed", esp_err_to_name(err));
+            }
+            return err;
+        }
+
+        if (progress_cb) {
+            progress_cb("updating", 95, "Image written and verified", NULL);
+        }
+
+        ESP_LOGI(TAG, "OTA successful, rebooting...");
+        if (progress_cb) {
+            progress_cb("updated", 100, "OTA successful, rebooting", NULL);
+        }
+        esp_restart();
+
+        break;
+    }
+
+    return ESP_OK;
 }

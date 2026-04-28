@@ -310,13 +310,19 @@ func (h *Handler) OTA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.svc.repo.GetByIDInRoom(r.Context(), deviceID, roomID); err != nil {
+	d, err := h.svc.repo.GetByIDInRoom(r.Context(), deviceID, roomID)
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
 			return
 		}
 		slog.Error("get device in room", "error", err)
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if !d.Online || time.Since(d.UpdatedAt) > h.svc.OnlineFreshness() {
+		http.Error(w, `{"error":"device is offline; OTA requires an online device"}`, http.StatusConflict)
 		return
 	}
 
@@ -343,17 +349,206 @@ func (h *Handler) OTA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.svc.TriggerOTA(r.Context(), deviceID, url); err != nil {
+	var requestedBy *string
+	if u := user.FromContext(r.Context()); u != nil {
+		requestedBy = &u.ID
+	}
+
+	var idempotencyKey *string
+	if key := strings.TrimSpace(req.IdempotencyKey); key != "" {
+		idempotencyKey = &key
+	}
+
+	attempt, err := h.svc.TriggerOTA(r.Context(), d, homeID, roomID, v.ID, url, requestedBy, idempotencyKey)
+	if err != nil {
 		slog.Error("trigger ota", "error", err)
+		if strings.Contains(strings.ToLower(err.Error()), "already in progress") {
+			http.Error(w, `{"error":"an OTA update is already in progress for this device"}`, http.StatusConflict)
+			return
+		}
 		http.Error(w, `{"error":"failed to send command"}`, http.StatusInternalServerError)
 		return
 	}
 
 	writeJSON(w, http.StatusAccepted, map[string]any{
-		"device_id":           deviceID,
+		"device_id":           d.ID,
 		"firmware_version_id": v.ID,
-		"url":                 url,
-		"status":              "queued",
+		"attempt_id":          attempt.ID,
+		"request_id":          attempt.RequestID,
+		"status":              attempt.Status,
+	})
+}
+
+func (h *Handler) ListOTAAttempts(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	homeID := r.PathValue("homeId")
+	roomID := r.PathValue("roomId")
+	if homeID == "" || roomID == "" {
+		http.Error(w, `{"error":"homeId and roomId are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	belongs, err := h.svc.repo.RoomBelongsToHome(r.Context(), roomID, homeID)
+	if err != nil {
+		slog.Error("check room membership", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	if !belongs {
+		http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
+		return
+	}
+
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	attempts, err := h.svc.ListOTAAttemptsByRoom(r.Context(), roomID, limit)
+	if err != nil {
+		slog.Error("list ota attempts", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	if attempts == nil {
+		attempts = []OTAAttempt{}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"data": attempts})
+}
+
+func (h *Handler) RetryOTA(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	homeID := r.PathValue("homeId")
+	roomID := r.PathValue("roomId")
+	attemptID := r.PathValue("attemptId")
+	if homeID == "" || roomID == "" || attemptID == "" {
+		http.Error(w, `{"error":"homeId, roomId and attemptId are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	belongs, err := h.svc.repo.RoomBelongsToHome(r.Context(), roomID, homeID)
+	if err != nil {
+		slog.Error("check room membership", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	if !belongs {
+		http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
+		return
+	}
+
+	prev, err := h.svc.GetOTAAttemptByID(r.Context(), attemptID)
+	if err != nil {
+		http.Error(w, `{"error":"attempt not found"}`, http.StatusNotFound)
+		return
+	}
+	if prev.RoomID != roomID || prev.HomeID != homeID {
+		http.Error(w, `{"error":"attempt not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if prev.Status != OTAAttemptStatusFailed && prev.Status != OTAAttemptStatusUpdated && prev.Status != OTAAttemptStatusCancelled && prev.Status != OTAAttemptStatusTimedOut {
+		http.Error(w, `{"error":"attempt is still in progress"}`, http.StatusConflict)
+		return
+	}
+
+	d, err := h.svc.repo.GetByIDInRoom(r.Context(), prev.DeviceID, roomID)
+	if err != nil {
+		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		return
+	}
+	if !d.Online || time.Since(d.UpdatedAt) > h.svc.OnlineFreshness() {
+		http.Error(w, `{"error":"device is offline; OTA requires an online device"}`, http.StatusConflict)
+		return
+	}
+
+	v, err := h.versionRepo.GetByID(r.Context(), prev.FirmwareVersionID)
+	if err != nil {
+		http.Error(w, `{"error":"firmware version not found"}`, http.StatusNotFound)
+		return
+	}
+
+	url, err := h.firmwareStore.PresignedURL(r.Context(), v.AppKey, 24*time.Hour)
+	if err != nil {
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+
+	requestedBy := &u.ID
+	attempt, err := h.svc.TriggerOTA(r.Context(), d, homeID, roomID, v.ID, url, requestedBy, nil)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "already in progress") {
+			http.Error(w, `{"error":"an OTA update is already in progress for this device"}`, http.StatusConflict)
+			return
+		}
+		http.Error(w, `{"error":"failed to send command"}`, http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"attempt_id": attempt.ID,
+		"request_id": attempt.RequestID,
+		"status":     attempt.Status,
+	})
+}
+
+func (h *Handler) CancelOTA(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	homeID := r.PathValue("homeId")
+	roomID := r.PathValue("roomId")
+	attemptID := r.PathValue("attemptId")
+	if homeID == "" || roomID == "" || attemptID == "" {
+		http.Error(w, `{"error":"homeId, roomId and attemptId are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	belongs, err := h.svc.repo.RoomBelongsToHome(r.Context(), roomID, homeID)
+	if err != nil {
+		slog.Error("check room membership", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	if !belongs {
+		http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
+		return
+	}
+
+	attempt, err := h.svc.GetOTAAttemptByID(r.Context(), attemptID)
+	if err != nil {
+		http.Error(w, `{"error":"attempt not found"}`, http.StatusNotFound)
+		return
+	}
+	if attempt.RoomID != roomID || attempt.HomeID != homeID {
+		http.Error(w, `{"error":"attempt not found"}`, http.StatusNotFound)
+		return
+	}
+
+	updated, err := h.svc.CancelOTAAttempt(r.Context(), attempt)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "not cancellable") {
+			http.Error(w, `{"error":"attempt is not cancellable"}`, http.StatusConflict)
+			return
+		}
+		http.Error(w, `{"error":"failed to cancel ota"}`, http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"attempt_id": updated.ID,
+		"request_id": updated.RequestID,
+		"status":     updated.Status,
 	})
 }
 
