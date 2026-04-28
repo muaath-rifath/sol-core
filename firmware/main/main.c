@@ -202,6 +202,7 @@ static void publish_ack(const char *request_id, bool ok, const char *message) {
 
 static void ota_task(void *param) {
   char *url = (char *)param;
+  ESP_LOGI(TAG, "ota_task started");
   if (!url) {
     vTaskDelete(NULL);
     return;
