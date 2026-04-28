@@ -1,15 +1,26 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "esp_log.h"
+#include "esp_system.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "esp_tls.h"
+#include "mqtt_client.h"
+#include "nvs_flash.h"
 #include "cJSON.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/event_groups.h"
+#include "driver/gpio.h"
+#include "ota.h"
 #include "certs.h"
 #include "dht_sensor.h"
-#include "driver/gpio.h"
 #include "esp_crt_bundle.h"
-#include "esp_event.h"
 #include "runtime_config.h"
 #include "smart_plug.h"
 #include "wifi.h"
+#include "led_control.h"
 
 static const char *TAG = "main";
 
