@@ -30,7 +30,7 @@ esp_err_t ota_start(const char *url, ota_progress_cb_t progress_cb,
 {
     ESP_LOGI(TAG, "Starting OTA from: %s", url);
     if (progress_cb) {
-        progress_cb("initiated", 0, "Starting OTA", NULL);
+        progress_cb("initiated", 1, "Starting OTA (C code)", NULL);
     }
 
     esp_http_client_config_t http_config = {
@@ -44,15 +44,24 @@ esp_err_t ota_start(const char *url, ota_progress_cb_t progress_cb,
         .http_config = &http_config,
     };
 
+    if (progress_cb) {
+        progress_cb("initiated", 2, "Calling esp_https_ota_begin", NULL);
+    }
+
     esp_https_ota_handle_t ota_handle = NULL;
     esp_err_t err = esp_https_ota_begin(&ota_config, &ota_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_https_ota_begin failed: %s", esp_err_to_name(err));
         if (progress_cb) {
-            progress_cb("failed", 0, "Failed to begin OTA", esp_err_to_name(err));
+            progress_cb("failed", 0, "esp_https_ota_begin failed", esp_err_to_name(err));
         }
         return err;
     }
+
+    if (progress_cb) {
+        progress_cb("initiated", 3, "esp_https_ota_begin successful", NULL);
+    }
+
 
     int last_progress = 5;
     if (progress_cb) {
@@ -75,7 +84,7 @@ esp_err_t ota_start(const char *url, ota_progress_cb_t progress_cb,
             ESP_LOGE(TAG, "esp_https_ota_perform failed: %s", esp_err_to_name(err));
             esp_https_ota_abort(ota_handle);
             if (progress_cb) {
-                progress_cb("failed", last_progress, "OTA download failed", esp_err_to_name(err));
+                progress_cb("failed", last_progress, "esp_https_ota_perform failed", esp_err_to_name(err));
             }
             return err;
         }
