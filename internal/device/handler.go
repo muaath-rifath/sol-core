@@ -570,29 +570,36 @@ func (h *Handler) DownloadOTAFirmware(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read and unescape the client cert from the header
+	// 1. Get the certificate from the header (passed by Traefik mtls-header middleware)
 	certHeader := r.Header.Get("X-Forwarded-Tls-Client-Cert")
 	if certHeader == "" {
 		http.Error(w, `{"error":"client certificate required"}`, http.StatusUnauthorized)
 		return
 	}
 
-	certPEM, err := url.QueryUnescape(certHeader)
-	if err != nil {
-		slog.Error("unescape client cert", "error", err)
-		http.Error(w, `{"error":"invalid client certificate encoding"}`, http.StatusBadRequest)
-		return
+	// 2. Decode the PEM block.
+	// The header might be passed as-is or URL-encoded by the proxy.
+	// We try to decode it directly first, then try unescaping if that fails.
+	var block *pem.Block
+	block, _ = pem.Decode([]byte(certHeader))
+	if block == nil {
+		certPEM, err := url.QueryUnescape(certHeader)
+		if err == nil {
+			block, _ = pem.Decode([]byte(certPEM))
+		}
 	}
 
-	block, _ := pem.Decode([]byte(certPEM))
 	if block == nil {
+		slog.Error("failed to decode client certificate from header",
+			"header_len", len(certHeader),
+			"attempt_id", attemptID)
 		http.Error(w, `{"error":"failed to decode client certificate"}`, http.StatusBadRequest)
 		return
 	}
 
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		slog.Error("parse client cert", "error", err)
+		slog.Error("failed to parse client certificate", "error", err, "attempt_id", attemptID)
 		http.Error(w, `{"error":"invalid client certificate"}`, http.StatusBadRequest)
 		return
 	}

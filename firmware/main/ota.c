@@ -53,9 +53,12 @@ esp_err_t ota_start(const char *url, const char *client_cert, const char *client
     esp_https_ota_handle_t ota_handle = NULL;
     esp_err_t err = esp_https_ota_begin(&ota_config, &ota_handle);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_https_ota_begin failed: %s", esp_err_to_name(err));
+        int status_code = esp_http_client_get_status_code(esp_https_ota_get_http_client(ota_handle));
+        ESP_LOGE(TAG, "esp_https_ota_begin failed: %s (HTTP status: %d)", esp_err_to_name(err), status_code);
         if (progress_cb) {
-            progress_cb("failed", 0, "esp_https_ota_begin failed", esp_err_to_name(err));
+            char status_str[16];
+            snprintf(status_str, sizeof(status_str), "%d", status_code);
+            progress_cb("failed", 0, "esp_https_ota_begin failed", status_code ? status_str : esp_err_to_name(err));
         }
         return err;
     }
