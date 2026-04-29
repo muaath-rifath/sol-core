@@ -548,12 +548,14 @@ void app_main(void) {
   };
 
   if (use_mtls) {
-    ESP_LOGI(TAG, "Loaded device certificates from flash for OTA");
+    ESP_LOGI(TAG, "Using mTLS certificates from flash");
+    mqtt_cfg.credentials.authentication.certificate = s_certs.client_cert;
+    mqtt_cfg.credentials.authentication.key = s_certs.client_key;
+  } else {
+    ESP_LOGI(TAG, "Using MQTT password authentication");
+    mqtt_cfg.credentials.username = runtime_get_mqtt_username();
+    mqtt_cfg.credentials.authentication.password = runtime_get_mqtt_password();
   }
-
-  ESP_LOGI(TAG, "Using MQTT password authentication");
-  mqtt_cfg.credentials.username = runtime_get_mqtt_username();
-  mqtt_cfg.credentials.authentication.password = runtime_get_mqtt_password();
 
   s_mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
   if (!s_mqtt_client) {
