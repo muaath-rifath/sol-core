@@ -95,7 +95,7 @@ func (c *Client) Disconnect() {
 }
 
 func createTLSConfig(caCertPath, clientCertPath, clientKeyPath string) (*tls.Config, error) {
-	// Import our Root CA cert
+	// Import trusted CA cert
 	caCert, err := os.ReadFile(caCertPath)
 	if err != nil {
 		return nil, fmt.Errorf("read ca cert: %w", err)
@@ -109,17 +109,21 @@ func createTLSConfig(caCertPath, clientCertPath, clientKeyPath string) (*tls.Con
 	}
 	caCertPool.AppendCertsFromPEM(caCert)
 
-	// Import client cert/key
-	cert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
-	if err != nil {
-		return nil, fmt.Errorf("load client key pair: %w", err)
-	}
-
-	return &tls.Config{
+	tlsConfig := &tls.Config{
 		RootCAs:            caCertPool,
-		Certificates:       []tls.Certificate{cert},
 		InsecureSkipVerify: false,
 		MinVersion:         tls.VersionTLS12,
 		ServerName:         "mqtt.sol.muaathrifath.me",
-	}, nil
+	}
+
+	// Import client cert/key if provided
+	if clientCertPath != "" && clientKeyPath != "" {
+		cert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("load client key pair: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	return tlsConfig, nil
 }
