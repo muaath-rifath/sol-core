@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -605,6 +606,7 @@ func (h *Handler) DownloadOTAFirmware(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if block == nil {
+		os.WriteFile("/tmp/last_cert_header.txt", []byte(certHeader), 0644)
 		prefix := certHeader
 		if len(prefix) > 100 {
 			prefix = prefix[:100]
