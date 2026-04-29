@@ -15,6 +15,7 @@ services:
       - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
       - "--providers.file.directory=/traefik/conf"
       - "--providers.file.watch=true"
+      - "--accesslog=true"
     extra_hosts:
       - "host-gateway:host-gateway"
     ports:
@@ -76,6 +77,7 @@ services:
       - "traefik.http.routers.sol-ota.service=sol-svc"
       # Service definition
       - "traefik.http.services.sol-svc.loadbalancer.server.port=8080"
+      - "traefik.docker.network=sol-net"
 
   sol-builder:
     build:
