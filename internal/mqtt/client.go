@@ -118,6 +118,6 @@ func createTLSConfig(caCertPath, clientCertPath, clientKeyPath string) (*tls.Con
 	return &tls.Config{
 		RootCAs:            caCertPool,
 		Certificates:       []tls.Certificate{cert},
-		InsecureSkipVerify: false,
+		InsecureSkipVerify: true,
 	}, nil
 }
