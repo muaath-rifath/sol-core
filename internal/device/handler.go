@@ -579,13 +579,28 @@ func (h *Handler) DownloadOTAFirmware(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Decode the PEM block.
 	// The header might be passed as-is or URL-encoded by the proxy.
-	// We try to decode it directly first, then try unescaping if that fails.
+	// Some proxies pass the raw base64 (DER) without PEM headers.
 	var block *pem.Block
 	block, _ = pem.Decode([]byte(certHeader))
 	if block == nil {
+		// Try unescaping and decoding
 		certPEM, err := url.QueryUnescape(certHeader)
 		if err == nil {
 			block, _ = pem.Decode([]byte(certPEM))
+		}
+	}
+
+	// If still nil, check if it's raw base64 (DER) starting with "MII"
+	if block == nil {
+		raw := certHeader
+		// Try unescaping first for the base64 check
+		if unescaped, err := url.QueryUnescape(certHeader); err == nil {
+			raw = unescaped
+		}
+		
+		if strings.HasPrefix(raw, "MII") {
+			pemStr := "-----BEGIN CERTIFICATE-----\n" + raw + "\n-----END CERTIFICATE-----"
+			block, _ = pem.Decode([]byte(pemStr))
 		}
 	}
 
