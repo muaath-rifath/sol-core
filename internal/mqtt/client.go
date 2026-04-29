@@ -118,6 +118,8 @@ func createTLSConfig(caCertPath, clientCertPath, clientKeyPath string) (*tls.Con
 	return &tls.Config{
 		RootCAs:            caCertPool,
 		Certificates:       []tls.Certificate{cert},
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: false,
+		MinVersion:         tls.VersionTLS12,
+		ServerName:         "mqtt.sol.muaathrifath.me",
 	}, nil
 }
