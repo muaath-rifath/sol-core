@@ -590,8 +590,13 @@ func (h *Handler) DownloadOTAFirmware(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if block == nil {
+		prefix := certHeader
+		if len(prefix) > 100 {
+			prefix = prefix[:100]
+		}
 		slog.Error("failed to decode client certificate from header",
 			"header_len", len(certHeader),
+			"header_prefix", prefix,
 			"attempt_id", attemptID)
 		http.Error(w, `{"error":"failed to decode client certificate"}`, http.StatusBadRequest)
 		return
