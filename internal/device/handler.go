@@ -2,6 +2,7 @@ package device
 
 import (
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -591,22 +592,23 @@ func (h *Handler) DownloadOTAFirmware(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// If still nil, check if it's raw base64 (DER) starting with "MII"
+	// If still nil, check if it's raw base64 (DER)
 	if block == nil {
 		raw := certHeader
-		// Try unescaping first for the base64 check
 		if unescaped, err := url.QueryUnescape(certHeader); err == nil {
 			raw = unescaped
 		}
 		
-		if strings.HasPrefix(raw, "MII") {
-			pemStr := "-----BEGIN CERTIFICATE-----\n" + raw + "\n-----END CERTIFICATE-----"
-			block, _ = pem.Decode([]byte(pemStr))
+		// Common issue: + being unescaped to space
+		raw = strings.ReplaceAll(raw, " ", "+")
+
+		der, err := base64.StdEncoding.DecodeString(raw)
+		if err == nil {
+			block = &pem.Block{Type: "CERTIFICATE", Bytes: der}
 		}
 	}
 
 	if block == nil {
-		os.WriteFile("/tmp/last_cert_header.txt", []byte(certHeader), 0644)
 		prefix := certHeader
 		if len(prefix) > 100 {
 			prefix = prefix[:100]
