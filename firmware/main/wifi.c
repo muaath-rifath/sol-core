@@ -169,24 +169,30 @@ esp_err_t wifi_station_init(const char *ssid, const char *password)
     ESP_ERROR_CHECK(esp_event_handler_instance_register(
         IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, &instance_got_ip));
 
-    wifi_config_t wifi_config = {
-        .sta = {
-            .threshold.authmode = WIFI_AUTH_WPA_WPA2_PSK,
-            .pmf_cfg = {
-                .capable = true,
-                .required = false,
-            },
-        },
-    };
-    strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
-    strncpy((char *)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
-
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+
+    if (ssid != NULL && strlen(ssid) > 0) {
+        wifi_config_t wifi_config = {
+            .sta = {
+                .threshold.authmode = WIFI_AUTH_WPA_WPA2_PSK,
+                .pmf_cfg = {
+                    .capable = true,
+                    .required = false,
+                },
+            },
+        };
+        strncpy((char *)wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid) - 1);
+        if (password != NULL) {
+            strncpy((char *)wifi_config.sta.password, password, sizeof(wifi_config.sta.password) - 1);
+        }
+        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+        ESP_LOGI(TAG, "Connecting to configured SSID: %s...", ssid);
+    } else {
+        ESP_LOGI(TAG, "No SSID configured, using previously saved credentials from NVS...");
+    }
+
     ESP_ERROR_CHECK(esp_wifi_start());
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
-
-    ESP_LOGI(TAG, "Connecting to %s...", ssid);
 
     	// Wait indefinitely — the event handler retries forever, so we only
 	// get WIFI_FAIL_BIT on a non-recoverable error (e.g. AUTH_FAIL).
