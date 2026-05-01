@@ -5,7 +5,7 @@
 #include "cJSON.h"
 #include <string.h>
 
-static const char *TAG = "device_switch";
+static const char *TAG = "driver_switch";
 
 static int s_relay_pins[RUNTIME_RELAY_CHANNELS_MAX] = {-1, -1, -1, -1};
 static bool s_relay_logical_states[RUNTIME_RELAY_CHANNELS_MAX] = {false, false, false, false};
@@ -27,7 +27,7 @@ static esp_err_t relay_write_channel(uint8_t channel, bool logical_on) {
 }
 
 static void switch_init(void) {
-    ESP_LOGI(TAG, "Initializing switch device");
+    ESP_LOGI(TAG, "Initializing switch driver");
     
     for (uint8_t i = 0; i < RUNTIME_RELAY_CHANNELS_MAX; i++) {
         s_relay_pins[i] = runtime_get_relay_pin(i);
@@ -74,19 +74,9 @@ static void switch_get_state(cJSON *state) {
     cJSON_AddItemToObject(state, "relays", relays);
 }
 
-static const device_driver_t s_switch_driver = {
+const device_driver_t s_switch_driver = {
     .template_id = "switch",
     .init = switch_init,
     .handle_mqtt = switch_handle_mqtt,
     .get_state = switch_get_state
 };
-
-const device_driver_t *device_driver_find(const char *template_id) {
-    // Basic string match. In the future, this could iterate an array of drivers.
-    if (template_id && strcmp(template_id, "switch") == 0) {
-        return &s_switch_driver;
-    }
-    
-    // Default to switch if nothing matches for now
-    return &s_switch_driver;
-}
