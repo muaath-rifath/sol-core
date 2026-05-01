@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "esp_partition.h"
+
 #define PATCH_SIGNATURE_V1 "SOLCFGv1::ESP32"
 #define PATCH_SIGNATURE_V2 "SOLCFGv2::ESP32"
 #define PATCH_SIGNATURE_FIELD_SIZE 16
@@ -81,11 +83,68 @@ static bool copy_runtime_or_default(char *out, size_t out_size,
     return has_override;
 }
 
+static bool load_factory_blob(runtime_config_blob_v2_t *factory_blob)
+{
+    const esp_partition_t *factory_part = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_FACTORY, NULL);
+    if (!factory_part) {
+        return false;
+    }
+
+    // Scan factory partition for the magic signature
+    const size_t chunk_size = 4096;
+    char *buf = malloc(chunk_size);
+    if (!buf) return false;
+
+    bool found = false;
+    for (size_t offset = 0; offset < factory_part->size; offset += chunk_size - PATCH_SIGNATURE_FIELD_SIZE) {
+        size_t read_size = chunk_size;
+        if (offset + read_size > factory_part->size) {
+            read_size = factory_part->size - offset;
+        }
+        
+        if (esp_partition_read(factory_part, offset, buf, read_size) != ESP_OK) {
+            break;
+        }
+
+        for (size_t i = 0; i <= read_size - PATCH_SIGNATURE_FIELD_SIZE; i++) {
+            if (memcmp(buf + i, PATCH_SIGNATURE_V2, strlen(PATCH_SIGNATURE_V2)) == 0) {
+                // Found signature, read the whole blob
+                if (esp_partition_read(factory_part, offset + i, factory_blob, sizeof(runtime_config_blob_v2_t)) == ESP_OK) {
+                    found = true;
+                }
+                break;
+            }
+        }
+        if (found) break;
+    }
+
+    free(buf);
+    return found;
+}
+
+static void init_runtime_config(void)
+{
+    static bool inited = false;
+    if (inited) return;
+
+    if (runtime_blob_valid_v2() && strlen(RUNTIME_CONFIG_BLOB.wifi_ssid) == 0) {
+        // Blob is empty (e.g. fresh OTA binary). Try to recover from factory partition.
+        runtime_config_blob_v2_t factory_blob;
+        if (load_factory_blob(&factory_blob)) {
+            if (strlen(factory_blob.wifi_ssid) > 0) {
+                memcpy(&RUNTIME_CONFIG_BLOB, &factory_blob, sizeof(runtime_config_blob_v2_t));
+            }
+        }
+    }
+    inited = true;
+}
+
 const char *runtime_get_wifi_ssid(void)
 {
     static char value[RUNTIME_WIFI_SSID_MAX_LEN + 1];
     static bool inited = false;
     if (!inited) {
+        init_runtime_config();
         copy_runtime_or_default(value, sizeof(value),
                                 RUNTIME_CONFIG_BLOB.wifi_ssid,
                                 CONFIG_WIFI_SSID,
@@ -100,6 +159,7 @@ const char *runtime_get_wifi_password(void)
     static char value[RUNTIME_WIFI_PASSWORD_MAX_LEN + 1];
     static bool inited = false;
     if (!inited) {
+        init_runtime_config();
         copy_runtime_or_default(value, sizeof(value),
                                 RUNTIME_CONFIG_BLOB.wifi_password,
                                 CONFIG_WIFI_PASSWORD,
@@ -114,6 +174,7 @@ const char *runtime_get_mqtt_broker_uri(void)
     static char value[RUNTIME_MQTT_URI_MAX_LEN + 1];
     static bool inited = false;
     if (!inited) {
+        init_runtime_config();
         copy_runtime_or_default(value, sizeof(value),
                                 RUNTIME_CONFIG_BLOB.mqtt_uri,
                                 CONFIG_MQTT_BROKER_URI,
@@ -128,6 +189,7 @@ const char *runtime_get_mqtt_username(void)
     static char value[RUNTIME_MQTT_USERNAME_MAX_LEN + 1];
     static bool inited = false;
     if (!inited) {
+        init_runtime_config();
         copy_runtime_or_default(value, sizeof(value),
                                 RUNTIME_CONFIG_BLOB.mqtt_username,
                                 CONFIG_MQTT_USERNAME,
@@ -142,6 +204,7 @@ const char *runtime_get_mqtt_password(void)
     static char value[RUNTIME_MQTT_PASSWORD_MAX_LEN + 1];
     static bool inited = false;
     if (!inited) {
+        init_runtime_config();
         copy_runtime_or_default(value, sizeof(value),
                                 RUNTIME_CONFIG_BLOB.mqtt_password,
                                 CONFIG_MQTT_PASSWORD,
@@ -156,6 +219,7 @@ const char *runtime_get_device_id(void)
     static char value[RUNTIME_DEVICE_ID_MAX_LEN + 1];
     static bool inited = false;
     if (!inited) {
+        init_runtime_config();
         copy_runtime_or_default(value, sizeof(value),
                                 RUNTIME_CONFIG_BLOB.device_id,
                                 CONFIG_DEVICE_ID,
@@ -170,9 +234,10 @@ const char *runtime_get_template_id(void)
     static char value[RUNTIME_TEMPLATE_ID_MAX_LEN + 1];
     static bool inited = false;
     if (!inited) {
+        init_runtime_config();
         copy_runtime_or_default(value, sizeof(value),
                                 RUNTIME_CONFIG_BLOB.template_id,
-                                "rgb_led",
+                                CONFIG_TEMPLATE_ID,
                                 runtime_blob_valid_v2());
         inited = true;
     }
@@ -222,6 +287,7 @@ bool runtime_is_relay_active_low(uint8_t channel_index)
 
 bool runtime_config_has_overrides(void)
 {
+    init_runtime_config();
     if (runtime_blob_valid_v2()) {
         return (RUNTIME_CONFIG_BLOB.wifi_ssid[0] != '\0') ||
                (RUNTIME_CONFIG_BLOB.wifi_password[0] != '\0') ||
