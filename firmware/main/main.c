@@ -15,12 +15,10 @@
 #include "driver/gpio.h"
 #include "ota.h"
 #include "certs.h"
-#include "dht_sensor.h"
+#include "device_driver.h"
 #include "esp_crt_bundle.h"
 #include "runtime_config.h"
-#include "smart_plug.h"
 #include "wifi.h"
-#include "led_control.h"
 
 static const char *TAG = "main";
 
@@ -37,16 +35,13 @@ static volatile bool s_ota_cancel_requested = false;
 static volatile bool s_ota_in_progress = false;
 static TickType_t s_last_state_publish_tick = 0;
 static bool s_mqtt_connected = false;
-static runtime_template_mode_t s_template_mode = RUNTIME_TEMPLATE_RGB_LED;
-static int s_relay_pins[RUNTIME_RELAY_CHANNELS_MAX] = {-1, -1, -1, -1};
-static bool s_relay_logical_states[RUNTIME_RELAY_CHANNELS_MAX] = {false, false,
-                                                                  false, false};
+static const device_driver_t *s_active_driver = NULL;
 
 #define STATE_HEARTBEAT_INTERVAL_MS 2000
 
 static cert_bundle_t s_certs = {0};
 
-static bool template_supports_relay(void);
+
 
 static bool ota_cancel_requested_cb(void) { return s_ota_cancel_requested; }
 
@@ -101,21 +96,11 @@ static void publish_state(bool online) {
   cJSON_AddStringToObject(state, "name", "ESP32 LED Controller");
   cJSON_AddBoolToObject(state, "online", online);
   cJSON_AddStringToObject(state, "templateId", runtime_get_template_id());
-  cJSON_AddNumberToObject(state, "templateMode", (double)s_template_mode);
   cJSON_AddNumberToObject(state, "ts", (double)esp_log_timestamp());
   cJSON_AddStringToObject(state, "ip_address", wifi_get_ip());
 
-  if (template_supports_relay()) {
-    cJSON *relays = cJSON_CreateArray();
-    for (int i = 0; i < RUNTIME_RELAY_CHANNELS_MAX; i++) {
-      if (s_relay_pins[i] != -1) {
-        cJSON_AddItemToArray(relays,
-                             cJSON_CreateBool(s_relay_logical_states[i]));
-      } else {
-        cJSON_AddItemToArray(relays, cJSON_CreateNull());
-      }
-    }
-    cJSON_AddItemToObject(state, "relays", relays);
+  if (s_active_driver && s_active_driver->get_state) {
+    s_active_driver->get_state(state);
   }
 
   char *payload = cJSON_PrintUnformatted(state);
@@ -132,49 +117,7 @@ static void publish_state(bool online) {
   cJSON_free(payload);
 }
 
-static bool template_supports_relay(void) { return true; }
 
-static bool relay_channel_valid(uint8_t channel) {
-  return channel < RUNTIME_RELAY_CHANNELS_MAX && s_relay_pins[channel] >= 0;
-}
-
-static esp_err_t relay_write_channel(uint8_t channel, bool logical_on) {
-  if (!relay_channel_valid(channel)) {
-    return ESP_ERR_INVALID_ARG;
-  }
-
-  bool active_low = runtime_is_relay_active_low(channel);
-  int level = logical_on ? (active_low ? 0 : 1) : (active_low ? 1 : 0);
-
-  if (s_template_mode == RUNTIME_TEMPLATE_SMART_PLUG && channel == 0) {
-    smart_plug_set_state(logical_on);
-  }
-
-  s_relay_logical_states[channel] = logical_on;
-  return gpio_set_level((gpio_num_t)s_relay_pins[channel], level);
-}
-
-static void init_template_runtime(void) {
-  s_template_mode = runtime_get_template_mode();
-
-  for (uint8_t i = 0; i < RUNTIME_RELAY_CHANNELS_MAX; i++) {
-    s_relay_pins[i] = runtime_get_relay_pin(i);
-    if (s_relay_pins[i] < 0) {
-      continue;
-    }
-    gpio_reset_pin((gpio_num_t)s_relay_pins[i]);
-    gpio_set_direction((gpio_num_t)s_relay_pins[i], GPIO_MODE_OUTPUT);
-    s_relay_logical_states[i] = false;
-    gpio_set_level((gpio_num_t)s_relay_pins[i],
-                   runtime_is_relay_active_low(i) ? 1 : 0);
-    ESP_LOGI(TAG, "Relay channel %u mapped to GPIO %d (activeLow=%s)",
-             (unsigned)(i + 1), s_relay_pins[i],
-             runtime_is_relay_active_low(i) ? "true" : "false");
-  }
-
-  ESP_LOGI(TAG, "Template selected: %s (mode=%u)", runtime_get_template_id(),
-           (unsigned)s_template_mode);
-}
 
 static void publish_ack(const char *request_id, bool ok, const char *message) {
   if (!s_mqtt_client || !request_id) {
@@ -266,72 +209,7 @@ static void handle_command_json(const char *json_text) {
     return;
   }
 
-  if (strcmp(action, "set_led_color") == 0 ||
-      strcmp(action, "set_color") == 0) {
-    int r = 0, g = 0, b = 0;
-    if (cJSON_IsObject(params)) {
-      const cJSON *jr = cJSON_GetObjectItemCaseSensitive(params, "r");
-      const cJSON *jg = cJSON_GetObjectItemCaseSensitive(params, "g");
-      const cJSON *jb = cJSON_GetObjectItemCaseSensitive(params, "b");
-      if (cJSON_IsNumber(jr))
-        r = jr->valueint;
-      if (cJSON_IsNumber(jg))
-        g = jg->valueint;
-      if (cJSON_IsNumber(jb))
-        b = jb->valueint;
-    }
-    if (r < 0)
-      r = 0;
-    if (r > 255)
-      r = 255;
-    if (g < 0)
-      g = 0;
-    if (g > 255)
-      g = 255;
-    if (b < 0)
-      b = 0;
-    if (b > 255)
-      b = 255;
-    led_set_color((uint8_t)r, (uint8_t)g, (uint8_t)b);
-    publish_ack(req_id, true, "LED color set successfully");
-  } else if (strcmp(action, "turn_led_off") == 0 ||
-             strcmp(action, "off") == 0) {
-    led_off();
-    publish_ack(req_id, true, "LED turned off");
-  } else if (strcmp(action, "relay_set") == 0 ||
-             strcmp(action, "set_relay") == 0 || strcmp(action, "set") == 0) {
-    if (!template_supports_relay()) {
-      publish_ack(req_id, false, "relay control not enabled for template");
-    } else {
-      const cJSON *channel_obj =
-          cJSON_GetObjectItemCaseSensitive(params, "channel");
-      const cJSON *power_obj =
-          cJSON_GetObjectItemCaseSensitive(params, "power");
-      // Also check 'on' for old format compatibility
-      if (!cJSON_IsBool(power_obj)) {
-        power_obj = cJSON_GetObjectItemCaseSensitive(params, "on");
-      }
-
-      if (!cJSON_IsNumber(channel_obj) || !cJSON_IsBool(power_obj)) {
-        publish_ack(req_id, false,
-                    "invalid relay params (need channel and power/on)");
-      } else {
-        int requested = channel_obj->valueint;
-        // Support both 0-based and 1-based channel indexing for robustness
-        uint8_t idx = (uint8_t)requested;
-
-        if (idx >= RUNTIME_RELAY_CHANNELS_MAX || !relay_channel_valid(idx)) {
-          publish_ack(req_id, false, "invalid or unconfigured relay channel");
-        } else if (relay_write_channel(idx, cJSON_IsTrue(power_obj)) !=
-                   ESP_OK) {
-          publish_ack(req_id, false, "failed to toggle relay");
-        } else {
-          publish_ack(req_id, true, "relay state updated");
-          publish_state(true);
-        }
-      }
-    }
-  } else if (strcmp(action, "ota_update") == 0) {
+  if (strcmp(action, "ota_update") == 0) {
     const cJSON *url_obj = cJSON_GetObjectItemCaseSensitive(params, "url");
     const cJSON *req_id_obj =
         cJSON_GetObjectItemCaseSensitive(params, "request_id");
@@ -384,9 +262,14 @@ static void handle_command_json(const char *json_text) {
     publish_ack(cancel_id, true, "OTA cancellation requested");
     publish_ota_status("cancelling", 0, "OTA cancellation requested", NULL);
   } else {
-    publish_ack(req_id, false, "unknown command");
+    if (s_active_driver && s_active_driver->handle_mqtt) {
+        s_active_driver->handle_mqtt(root, req_id);
+        publish_ack(req_id, true, "command forwarded to device driver");
+        publish_state(true);
+    } else {
+        publish_ack(req_id, false, "unknown command or no driver");
+    }
   }
-
   cJSON_Delete(root);
 }
 
@@ -481,8 +364,10 @@ void app_main(void) {
 
   ota_validate_image();
 
-  led_init();
-  led_set_color(0, 0, 64);
+  s_active_driver = device_driver_find(runtime_get_template_id());
+  if (s_active_driver && s_active_driver->init) {
+      s_active_driver->init();
+  }
 
   const char *wifi_ssid = runtime_get_wifi_ssid();
   const char *wifi_password = runtime_get_wifi_password();
@@ -496,7 +381,7 @@ void app_main(void) {
     s_device_id[sizeof(s_device_id) - 1] = '\0';
   }
 
-  init_template_runtime();
+
 
   if (runtime_config_has_overrides()) {
     ESP_LOGI(TAG, "Using flash-time network configuration override");
@@ -506,14 +391,13 @@ void app_main(void) {
 
   ret = wifi_station_init(wifi_ssid, wifi_password);
   if (ret != ESP_OK) {
-    ESP_LOGE(TAG, "WiFi connection failed, LED red");
-    led_set_color(64, 0, 0);
+    ESP_LOGE(TAG, "WiFi connection failed");
     return;
   }
 
   initialize_sntp();
 
-  led_set_color(0, 64, 0);
+
   vTaskDelay(pdMS_TO_TICKS(500));
 
   snprintf(s_topic_state, sizeof(s_topic_state), "sol/devices/%s/state",
@@ -560,7 +444,6 @@ void app_main(void) {
   s_mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
   if (!s_mqtt_client) {
     ESP_LOGE(TAG, "Failed to init MQTT client");
-    led_set_color(64, 0, 0);
     certs_free(&s_certs);
     return;
   }
@@ -575,13 +458,7 @@ void app_main(void) {
   // configured to do so. To be safe, we leak this memory for now as it's a
   // one-time allocation.
 
-  if (s_template_mode == RUNTIME_TEMPLATE_ENV_SENSOR) {
-    env_sensor_start(s_mqtt_client, s_device_id);
-  } else if (s_template_mode == RUNTIME_TEMPLATE_SMART_PLUG) {
-    smart_plug_start(s_mqtt_client, s_device_id);
-  }
 
-  led_off();
   ESP_LOGI(TAG, "Device online, waiting for MQTT commands...");
 
   while (1) {
