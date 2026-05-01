@@ -237,7 +237,7 @@ const char *runtime_get_template_id(void)
         init_runtime_config();
         copy_runtime_or_default(value, sizeof(value),
                                 RUNTIME_CONFIG_BLOB.template_id,
-                                CONFIG_TEMPLATE_ID,
+                                "rgb_led",
                                 runtime_blob_valid_v2());
         inited = true;
     }
