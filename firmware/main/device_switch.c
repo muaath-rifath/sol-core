@@ -3,6 +3,7 @@
 #include "esp_log.h"
 #include "driver/gpio.h"
 #include "cJSON.h"
+#include <string.h>
 
 static const char *TAG = "device_switch";
 
