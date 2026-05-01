@@ -24,12 +24,7 @@ type Device struct {
 type DeviceType string
 
 const (
-	DeviceTypeLight  DeviceType = "light"
 	DeviceTypeSwitch DeviceType = "switch"
-	DeviceTypeSensor DeviceType = "sensor"
-	DeviceTypeLock   DeviceType = "lock"
-	DeviceTypeFan    DeviceType = "fan"
-	DeviceTypeCustom DeviceType = "custom"
 )
 
 type Command struct {
