@@ -125,8 +125,11 @@ static void event_handler(void *arg, esp_event_base_t event_base,
                 ESP_LOGD(TAG, "Reconnect already pending, ignoring duplicate disconnect event");
             }
         } else if (!s_startup_connected) {
-            ESP_LOGE(TAG, "Initial Wi-Fi connection failed after %d retries", MAX_RETRY);
-            xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
+            // Exhausted initial retries — reset and keep trying forever.
+            ESP_LOGW(TAG, "Initial Wi-Fi connection failed after %d retries, resetting and retrying...", MAX_RETRY);
+            s_retry_num = 0;
+            s_retry_backoff_ms = RETRY_BACKOFF_INITIAL_MS;
+            schedule_reconnect(RETRY_BACKOFF_MAX_MS);
         } else {
             // After first successful connection, keep trying forever to recover Wi-Fi.
             if (schedule_reconnect(RETRY_BACKOFF_INITIAL_MS)) {
@@ -185,20 +188,17 @@ esp_err_t wifi_station_init(const char *ssid, const char *password)
 
     ESP_LOGI(TAG, "Connecting to %s...", ssid);
 
-    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-        WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-        pdFALSE, pdFALSE, pdMS_TO_TICKS(WIFI_CONNECT_TIMEOUT_MS));
+    	// Wait indefinitely — the event handler retries forever, so we only
+	// get WIFI_FAIL_BIT on a non-recoverable error (e.g. AUTH_FAIL).
+	EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+		WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+		pdFALSE, pdFALSE, portMAX_DELAY);
 
-    if ((bits & (WIFI_CONNECTED_BIT | WIFI_FAIL_BIT)) == 0) {
-        ESP_LOGE(TAG, "Timed out waiting for Wi-Fi connection (%d ms)", WIFI_CONNECT_TIMEOUT_MS);
-        return ESP_ERR_TIMEOUT;
-    }
+	if (bits & WIFI_CONNECTED_BIT) {
+		ESP_LOGI(TAG, "Connected to %s", ssid);
+		return ESP_OK;
+	}
 
-    if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "Connected to %s", ssid);
-        return ESP_OK;
-    }
-
-    ESP_LOGE(TAG, "Failed to connect to %s", ssid);
-    return ESP_FAIL;
+	ESP_LOGE(TAG, "Failed to connect to %s (non-retriable error)", ssid);
+	return ESP_FAIL;
 }
