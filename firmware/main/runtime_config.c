@@ -25,10 +25,9 @@ typedef struct {
     char mqtt_password[RUNTIME_MQTT_PASSWORD_MAX_LEN + 1];
     char device_id[RUNTIME_DEVICE_ID_MAX_LEN + 1];
     char template_id[RUNTIME_TEMPLATE_ID_MAX_LEN + 1];
-    uint8_t template_mode;
     uint8_t relay_pins[RUNTIME_RELAY_CHANNELS_MAX];
     uint8_t relay_active_low_mask;
-    uint8_t reserved[10];
+    uint8_t reserved[11];
 } runtime_config_blob_v2_t;
 
 // Patched in-place by web flasher before writing app flash.
@@ -42,7 +41,6 @@ __attribute__((used)) static runtime_config_blob_v2_t RUNTIME_CONFIG_BLOB = {
     .mqtt_password = "",
     .device_id = "",
     .template_id = "",
-    .template_mode = (uint8_t)RUNTIME_TEMPLATE_RGB_LED,
     .relay_pins = {0, 0, 0, 0},
     .relay_active_low_mask = 0,
     .reserved = {0},
@@ -237,26 +235,13 @@ const char *runtime_get_template_id(void)
         init_runtime_config();
         copy_runtime_or_default(value, sizeof(value),
                                 RUNTIME_CONFIG_BLOB.template_id,
-                                "rgb_led",
+                                "switch",
                                 runtime_blob_valid_v2());
         inited = true;
     }
     return value;
 }
 
-runtime_template_mode_t runtime_get_template_mode(void)
-{
-    if (!runtime_blob_valid_v2()) {
-        return RUNTIME_TEMPLATE_RGB_LED;
-    }
-
-    if (RUNTIME_CONFIG_BLOB.template_mode > (uint8_t)RUNTIME_TEMPLATE_SMART_PLUG) {
-        return RUNTIME_TEMPLATE_RGB_LED;
-    }
-
-
-    return (runtime_template_mode_t)RUNTIME_CONFIG_BLOB.template_mode;
-}
 
 int runtime_get_relay_pin(uint8_t channel_index)
 {
@@ -296,7 +281,6 @@ bool runtime_config_has_overrides(void)
                (RUNTIME_CONFIG_BLOB.mqtt_password[0] != '\0') ||
                (RUNTIME_CONFIG_BLOB.device_id[0] != '\0') ||
                (RUNTIME_CONFIG_BLOB.template_id[0] != '\0') ||
-               (RUNTIME_CONFIG_BLOB.template_mode != (uint8_t)RUNTIME_TEMPLATE_RGB_LED) ||
                (RUNTIME_CONFIG_BLOB.relay_pins[0] != 0) ||
                (RUNTIME_CONFIG_BLOB.relay_pins[1] != 0) ||
                (RUNTIME_CONFIG_BLOB.relay_pins[2] != 0) ||
