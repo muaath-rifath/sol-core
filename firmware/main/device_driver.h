@@ -19,11 +19,12 @@ typedef struct {
     void (*init)(void);
 
     /**
-     * @brief Handle an incoming MQTT control payload.
-     * @param payload Parsed JSON payload
+     * @brief Handle an incoming MQTT control command.
+     * @param action The parsed action string
+     * @param params The parsed params JSON object
      * @param req_id The request ID (for sending acks)
      */
-    void (*handle_mqtt)(const cJSON *payload, const char *req_id);
+    void (*handle_mqtt)(const char *action, const cJSON *params, const char *req_id);
 
     /**
      * @brief Populate the current state into the provided JSON object.
