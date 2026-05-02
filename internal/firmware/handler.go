@@ -282,6 +282,8 @@ func (h *Handler) DownloadByVersionID(w http.ResponseWriter, r *http.Request) {
 	}
 	defer reader.Close()
 
+	http.NewResponseController(w).SetWriteDeadline(time.Time{})
+
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s-app.bin", v.TemplateID, v.Version))
 	io.Copy(w, reader)
