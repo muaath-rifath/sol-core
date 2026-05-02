@@ -94,7 +94,7 @@ static bool copy_runtime_or_default(char *out, size_t out_size,
 static bool load_from_nvs(void)
 {
     nvs_handle_t h;
-    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
+    if (nvs_open_from_partition("config", NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
         return false;
     }
 
@@ -144,8 +144,8 @@ static bool load_from_nvs(void)
 static void save_to_nvs(void)
 {
     nvs_handle_t h;
-    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to open NVS for write");
+    if (nvs_open_from_partition("config", NVS_NAMESPACE, NVS_READWRITE, &h) != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to open config NVS partition for write");
         return;
     }
 

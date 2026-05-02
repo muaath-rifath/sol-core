@@ -362,6 +362,14 @@ void app_main(void) {
   }
   ESP_ERROR_CHECK(ret);
 
+  // Separate NVS partition for device credentials — never erased so that
+  // nvs_flash_erase() above (which only touches the default "nvs" partition)
+  // cannot wipe device_id, WiFi, or MQTT config.
+  ret = nvs_flash_init_partition("config");
+  if (ret != ESP_OK) {
+    ESP_LOGW(TAG, "config partition init failed (%s) — needs USB re-flash", esp_err_to_name(ret));
+  }
+
   ota_validate_image();
 
   s_active_driver = device_driver_find(runtime_get_template_id());
