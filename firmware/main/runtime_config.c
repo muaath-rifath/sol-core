@@ -2,8 +2,14 @@
 
 #include <stdbool.h>
 #include <string.h>
+#include <stdlib.h>
 
+#include "esp_log.h"
 #include "esp_partition.h"
+#include "nvs.h"
+
+#define TAG "runtime_cfg"
+#define NVS_NAMESPACE "sol_cfg"
 
 #define PATCH_SIGNATURE_V1 "SOLCFGv1::ESP32"
 #define PATCH_SIGNATURE_V2 "SOLCFGv2::ESP32"
@@ -81,59 +87,113 @@ static bool copy_runtime_or_default(char *out, size_t out_size,
     return has_override;
 }
 
-static bool load_factory_blob(runtime_config_blob_v2_t *factory_blob)
+// ---------------------------------------------------------------------------
+// NVS persistence — survives OTA because NVS is a separate flash partition
+// ---------------------------------------------------------------------------
+
+static bool load_from_nvs(void)
 {
-    const esp_partition_t *factory_part = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_FACTORY, NULL);
-    if (!factory_part) {
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &h) != ESP_OK) {
         return false;
     }
 
-    // Scan factory partition for the magic signature
-    const size_t chunk_size = 4096;
-    char *buf = malloc(chunk_size);
-    if (!buf) return false;
+    // Use device_id as the presence sentinel — it's the most critical field.
+    char device_id[RUNTIME_DEVICE_ID_MAX_LEN + 1] = {0};
+    size_t len = sizeof(device_id);
+    bool found = (nvs_get_str(h, "device_id", device_id, &len) == ESP_OK && device_id[0] != '\0');
 
-    bool found = false;
-    for (size_t offset = 0; offset < factory_part->size; offset += chunk_size - PATCH_SIGNATURE_FIELD_SIZE) {
-        size_t read_size = chunk_size;
-        if (offset + read_size > factory_part->size) {
-            read_size = factory_part->size - offset;
-        }
-        
-        if (esp_partition_read(factory_part, offset, buf, read_size) != ESP_OK) {
-            break;
-        }
+    if (found) {
+        strncpy(RUNTIME_CONFIG_BLOB.device_id, device_id, RUNTIME_DEVICE_ID_MAX_LEN);
+        RUNTIME_CONFIG_BLOB.device_id[RUNTIME_DEVICE_ID_MAX_LEN] = '\0';
 
-        for (size_t i = 0; i <= read_size - PATCH_SIGNATURE_FIELD_SIZE; i++) {
-            if (memcmp(buf + i, PATCH_SIGNATURE_V2, strlen(PATCH_SIGNATURE_V2)) == 0) {
-                // Found signature, read the whole blob
-                if (esp_partition_read(factory_part, offset + i, factory_blob, sizeof(runtime_config_blob_v2_t)) == ESP_OK) {
-                    found = true;
-                }
-                break;
-            }
-        }
-        if (found) break;
+        len = sizeof(RUNTIME_CONFIG_BLOB.wifi_ssid);
+        nvs_get_str(h, "wifi_ssid", RUNTIME_CONFIG_BLOB.wifi_ssid, &len);
+
+        len = sizeof(RUNTIME_CONFIG_BLOB.wifi_password);
+        nvs_get_str(h, "wifi_pass", RUNTIME_CONFIG_BLOB.wifi_password, &len);
+
+        len = sizeof(RUNTIME_CONFIG_BLOB.mqtt_uri);
+        nvs_get_str(h, "mqtt_uri", RUNTIME_CONFIG_BLOB.mqtt_uri, &len);
+
+        len = sizeof(RUNTIME_CONFIG_BLOB.mqtt_username);
+        nvs_get_str(h, "mqtt_user", RUNTIME_CONFIG_BLOB.mqtt_username, &len);
+
+        len = sizeof(RUNTIME_CONFIG_BLOB.mqtt_password);
+        nvs_get_str(h, "mqtt_pass", RUNTIME_CONFIG_BLOB.mqtt_password, &len);
+
+        len = sizeof(RUNTIME_CONFIG_BLOB.template_id);
+        nvs_get_str(h, "tmpl_id", RUNTIME_CONFIG_BLOB.template_id, &len);
+
+        len = sizeof(RUNTIME_CONFIG_BLOB.relay_pins);
+        nvs_get_blob(h, "relay_pins", RUNTIME_CONFIG_BLOB.relay_pins, &len);
+
+        nvs_get_u8(h, "relay_alow", &RUNTIME_CONFIG_BLOB.relay_active_low_mask);
+
+        // Ensure the blob signature is valid so existing callers work.
+        strncpy(RUNTIME_CONFIG_BLOB.signature, PATCH_SIGNATURE_V2, PATCH_SIGNATURE_FIELD_SIZE - 1);
+        RUNTIME_CONFIG_BLOB.signature[PATCH_SIGNATURE_FIELD_SIZE - 1] = '\0';
+
+        ESP_LOGI(TAG, "Config loaded from NVS (device_id=%s)", device_id);
     }
 
-    free(buf);
+    nvs_close(h);
     return found;
 }
+
+static void save_to_nvs(void)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h) != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to open NVS for write");
+        return;
+    }
+
+    nvs_set_str(h, "device_id", RUNTIME_CONFIG_BLOB.device_id);
+    nvs_set_str(h, "wifi_ssid", RUNTIME_CONFIG_BLOB.wifi_ssid);
+    nvs_set_str(h, "wifi_pass", RUNTIME_CONFIG_BLOB.wifi_password);
+    nvs_set_str(h, "mqtt_uri",  RUNTIME_CONFIG_BLOB.mqtt_uri);
+    nvs_set_str(h, "mqtt_user", RUNTIME_CONFIG_BLOB.mqtt_username);
+    nvs_set_str(h, "mqtt_pass", RUNTIME_CONFIG_BLOB.mqtt_password);
+    nvs_set_str(h, "tmpl_id",   RUNTIME_CONFIG_BLOB.template_id);
+    nvs_set_blob(h, "relay_pins", RUNTIME_CONFIG_BLOB.relay_pins, sizeof(RUNTIME_CONFIG_BLOB.relay_pins));
+    nvs_set_u8(h, "relay_alow", RUNTIME_CONFIG_BLOB.relay_active_low_mask);
+
+    nvs_commit(h);
+    nvs_close(h);
+
+    ESP_LOGI(TAG, "Config saved to NVS (device_id=%s)", RUNTIME_CONFIG_BLOB.device_id);
+}
+
+// ---------------------------------------------------------------------------
 
 static void init_runtime_config(void)
 {
     static bool inited = false;
     if (inited) return;
 
-    if (runtime_blob_valid_v2() && strlen(RUNTIME_CONFIG_BLOB.wifi_ssid) == 0) {
-        // Blob is empty (e.g. fresh OTA binary). Try to recover from factory partition.
-        runtime_config_blob_v2_t factory_blob;
-        if (load_factory_blob(&factory_blob)) {
-            if (strlen(factory_blob.wifi_ssid) > 0) {
-                memcpy(&RUNTIME_CONFIG_BLOB, &factory_blob, sizeof(runtime_config_blob_v2_t));
-            }
-        }
+    // NVS is a dedicated flash partition that OTA never touches.
+    // Always check it first so config survives firmware updates.
+    if (load_from_nvs()) {
+        inited = true;
+        return;
     }
+
+    // NVS empty. Check the embedded blob — it is patched in-place by the web
+    // flasher before the binary is written to flash. A freshly USB-flashed
+    // device will have non-empty fields here.
+    bool blob_has_config = runtime_blob_valid_v2() &&
+                           (RUNTIME_CONFIG_BLOB.device_id[0] != '\0' ||
+                            RUNTIME_CONFIG_BLOB.wifi_ssid[0] != '\0');
+    if (blob_has_config) {
+        // Persist to NVS so the next OTA boot finds it there.
+        save_to_nvs();
+        inited = true;
+        return;
+    }
+
+    // Nothing found — device needs provisioning via USB flasher.
+    ESP_LOGW(TAG, "No config found in NVS or blob — device needs provisioning");
     inited = true;
 }
 
