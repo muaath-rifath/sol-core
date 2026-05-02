@@ -8,18 +8,31 @@ import (
 	"sync"
 
 	"github.com/coder/websocket"
+	"github.com/muaathrifath/sol-core/internal/user"
 	"github.com/redis/go-redis/v9"
 )
 
 type Hub struct {
-	rdb     *redis.Client
-	clients map[*conn]bool
-	mu      sync.RWMutex
+	rdb            *redis.Client
+	clients        map[*conn]bool
+	mu             sync.RWMutex
+	commandHandler CommandHandlerFunc
+}
+
+// CommandHandlerFunc is called for each message the client sends over the WS connection.
+type CommandHandlerFunc func(ctx context.Context, u *user.User, msg ClientMessage) error
+
+// ClientMessage is the envelope for all client-to-server WS messages.
+type ClientMessage struct {
+	Type          string          `json:"type"`
+	CorrelationID string          `json:"correlationId,omitempty"`
+	Data          json.RawMessage `json:"data"`
 }
 
 type conn struct {
 	ws   *websocket.Conn
 	send chan []byte
+	user *user.User
 }
 
 type Event struct {
@@ -32,6 +45,11 @@ func NewHub(rdb *redis.Client) *Hub {
 		rdb:     rdb,
 		clients: make(map[*conn]bool),
 	}
+}
+
+// SetCommandHandler registers the function that handles incoming client messages.
+func (h *Hub) SetCommandHandler(fn CommandHandlerFunc) {
+	h.commandHandler = fn
 }
 
 func (h *Hub) Run(ctx context.Context) {
@@ -97,6 +115,7 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	c := &conn{
 		ws:   wsConn,
 		send: make(chan []byte, 256),
+		user: user.FromContext(r.Context()),
 	}
 
 	h.mu.Lock()
@@ -117,6 +136,17 @@ func (h *Hub) writePump(c *conn) {
 	}
 }
 
+func (h *Hub) sendToConn(c *conn, eventType string, data any) {
+	payload, err := json.Marshal(Event{Type: eventType, Data: data})
+	if err != nil {
+		return
+	}
+	select {
+	case c.send <- payload:
+	default:
+	}
+}
+
 func (h *Hub) readPump(ctx context.Context, c *conn) {
 	defer func() {
 		h.mu.Lock()
@@ -126,10 +156,35 @@ func (h *Hub) readPump(ctx context.Context, c *conn) {
 	}()
 
 	for {
-		_, _, err := c.ws.Read(ctx)
+		_, raw, err := c.ws.Read(ctx)
 		if err != nil {
 			return
 		}
-		// TODO: handle incoming client messages if needed
+
+		if h.commandHandler == nil {
+			continue
+		}
+
+		var msg ClientMessage
+		if err := json.Unmarshal(raw, &msg); err != nil {
+			slog.Warn("ws: invalid client message", "error", err)
+			continue
+		}
+
+		if err := h.commandHandler(ctx, c.user, msg); err != nil {
+			slog.Warn("ws: command handler error", "error", err, "type", msg.Type)
+			h.sendToConn(c, "command.ack", map[string]any{
+				"correlationId": msg.CorrelationID,
+				"success":       false,
+				"error":         err.Error(),
+			})
+			continue
+		}
+
+		h.sendToConn(c, "command.ack", map[string]any{
+			"correlationId": msg.CorrelationID,
+			"success":       true,
+			"error":         nil,
+		})
 	}
 }

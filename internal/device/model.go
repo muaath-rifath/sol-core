@@ -34,6 +34,15 @@ type Command struct {
 	Params    map[string]any `json:"params,omitempty"`
 }
 
+// WSCommandRequest is the data payload for a "device.command" WS message.
+type WSCommandRequest struct {
+	HomeID   string         `json:"home_id"`
+	RoomID   string         `json:"room_id"`
+	DeviceID string         `json:"device_id"`
+	Action   string         `json:"action"`
+	Params   map[string]any `json:"params,omitempty"`
+}
+
 type OTARequest struct {
 	FirmwareVersionID string `json:"firmware_version_id"`
 	IdempotencyKey    string `json:"idempotency_key,omitempty"`
