@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -145,6 +147,18 @@ func main() {
 	// MQTT message handler
 	mqttHandler := mqtt.NewHandler(deviceSvc, hub)
 	mqttClient.SetMessageHandler(mqttHandler.Handle)
+
+	// WS command handler — routes device.command messages from browser clients
+	hub.SetCommandHandler(func(ctx context.Context, u *user.User, msg ws.ClientMessage) error {
+		if msg.Type != "device.command" {
+			return nil
+		}
+		var req device.WSCommandRequest
+		if err := json.Unmarshal(msg.Data, &req); err != nil {
+			return fmt.Errorf("invalid command payload")
+		}
+		return deviceSvc.SendCommandForUser(ctx, req)
+	})
 
 	// Subscribe to device topics
 	if err := mqttClient.Subscribe("sol/devices/+/state", 1); err != nil {

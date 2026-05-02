@@ -193,7 +193,73 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 
 func (s *Service) SendCommand(ctx context.Context, cmd Command) error {
 	topic := fmt.Sprintf("sol/devices/%s/cmd", cmd.DeviceID)
-	return s.mqtt.Publish(topic, cmd)
+	if err := s.mqtt.Publish(topic, cmd); err != nil {
+		return err
+	}
+
+	if cmd.Action == "relay_set" || cmd.Action == "set_relay" {
+		if powerAny, ok := cmd.Params["power"]; ok {
+			if power, ok := powerAny.(bool); ok {
+				channelInt := 0
+				if channelAny, ok := cmd.Params["channel"]; ok {
+					switch v := channelAny.(type) {
+					case float64:
+						channelInt = int(v)
+					case int:
+						channelInt = v
+					case int64:
+						channelInt = int(v)
+					}
+				}
+				appliances, err := s.repo.ListAppliancesByDevice(ctx, cmd.DeviceID)
+				if err == nil {
+					for _, app := range appliances {
+						if app.Channel != nil && *app.Channel == channelInt {
+							if app.State == nil {
+								app.State = make(map[string]any)
+							}
+							app.State["isOn"] = power
+							app.UpdatedAt = time.Now()
+							_ = s.repo.UpdateAppliance(ctx, &app)
+							s.hub.Broadcast("appliance.state", map[string]any{
+								"appliance_id": app.ID,
+								"state":        app.State,
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// SendCommandForUser validates ownership then delegates to SendCommand.
+// Mirrors the authorization checks the HTTP handler applies.
+func (s *Service) SendCommandForUser(ctx context.Context, req WSCommandRequest) error {
+	if req.DeviceID == "" || req.Action == "" {
+		return fmt.Errorf("device_id and action are required")
+	}
+	if req.RoomID != "" {
+		if req.HomeID != "" {
+			belongs, err := s.repo.RoomBelongsToHome(ctx, req.RoomID, req.HomeID)
+			if err != nil {
+				return fmt.Errorf("internal error")
+			}
+			if !belongs {
+				return fmt.Errorf("room not found")
+			}
+		}
+		if _, err := s.repo.GetByIDInRoom(ctx, req.DeviceID, req.RoomID); err != nil {
+			return fmt.Errorf("device not found")
+		}
+	}
+	return s.SendCommand(ctx, Command{
+		DeviceID: req.DeviceID,
+		Action:   req.Action,
+		Params:   req.Params,
+	})
 }
 
 func (s *Service) TriggerOTA(ctx context.Context, d *Device, homeID, roomID, firmwareVersionID string, requestedBy *string, idempotencyKey *string) (*OTAAttempt, error) {
