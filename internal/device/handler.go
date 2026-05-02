@@ -670,6 +670,9 @@ func (h *Handler) DownloadOTAFirmware(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s-app.bin", v.TemplateID, v.Version))
+	if v.SizeBytes != nil && *v.SizeBytes > 0 {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", *v.SizeBytes))
+	}
 	io.Copy(w, reader)
 }
 
