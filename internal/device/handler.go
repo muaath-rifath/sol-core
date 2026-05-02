@@ -664,6 +664,10 @@ func (h *Handler) DownloadOTAFirmware(w http.ResponseWriter, r *http.Request) {
 	}
 	defer reader.Close()
 
+	// Disable write deadline for firmware streaming — the 15s server WriteTimeout
+	// will cut the connection mid-transfer on slow WiFi otherwise.
+	http.NewResponseController(w).SetWriteDeadline(time.Time{})
+
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s-app.bin", v.TemplateID, v.Version))
 	io.Copy(w, reader)
