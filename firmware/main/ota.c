@@ -103,13 +103,15 @@ esp_err_t ota_start(const char *url, const char *client_cert, const char *client
 
         if (err == ESP_ERR_HTTPS_OTA_IN_PROGRESS) {
             if (progress_cb) {
-                int dynamic = 20 + ((total_read / OTA_BUF_SIZE) % 70);
-                if (dynamic < last_progress) {
-                    dynamic = last_progress;
+                int image_size = esp_https_ota_get_image_size(ota_handle);
+                int dynamic;
+                if (image_size > 0) {
+                    dynamic = 20 + (int)((float)total_read / image_size * 70);
+                } else {
+                    dynamic = last_progress + 1;
+                    if (dynamic > 89) dynamic = 89;
                 }
-                if (dynamic > 90) {
-                    dynamic = 90;
-                }
+                if (dynamic > 89) dynamic = 89;
                 if (dynamic != last_progress) {
                     last_progress = dynamic;
                     progress_cb("downloading", dynamic, "Writing firmware blocks", NULL);
