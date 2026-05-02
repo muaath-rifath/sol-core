@@ -205,6 +205,30 @@ func (r *OTAAttemptRepository) GetByIdempotencyKey(ctx context.Context, key stri
 	return &a, nil
 }
 
+func (r *OTAAttemptRepository) GetActiveForDevice(ctx context.Context, deviceID string) (*OTAAttempt, error) {
+	row := r.pool.QueryRow(ctx,
+		`SELECT id, device_id, room_id, home_id, firmware_version_id, requested_by, idempotency_key, request_id,
+		        status, progress_pct, logs, error_text, started_at, finished_at, created_at, updated_at
+		   FROM ota_update_attempts
+		  WHERE device_id = $1
+		    AND status IN ('initiated', 'acknowledged', 'downloading', 'verifying', 'updating', 'cancelling')
+		  ORDER BY created_at DESC
+		  LIMIT 1`,
+		deviceID,
+	)
+	a := &OTAAttempt{}
+	err := row.Scan(
+		&a.ID, &a.DeviceID, &a.RoomID, &a.HomeID, &a.FirmwareVersionID,
+		&a.RequestedBy, &a.IdempotencyKey, &a.RequestID,
+		&a.Status, &a.ProgressPct, &a.Logs, &a.ErrorText,
+		&a.StartedAt, &a.FinishedAt, &a.CreatedAt, &a.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
 func (r *OTAAttemptRepository) HasActiveForDevice(ctx context.Context, deviceID string) (bool, error) {
 	var exists bool
 	err := r.pool.QueryRow(ctx,

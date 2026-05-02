@@ -542,14 +542,14 @@ func mapOTAStatus(raw string) OTAAttemptStatus {
 	if strings.Contains(s, "download") {
 		return OTAAttemptStatusDownloading
 	}
+	if strings.Contains(s, "done") || strings.Contains(s, "success") || strings.Contains(s, "updated") || strings.Contains(s, "reboot") {
+		return OTAAttemptStatusUpdated
+	}
 	if strings.Contains(s, "verif") {
 		return OTAAttemptStatusVerifying
 	}
 	if strings.Contains(s, "updat") || strings.Contains(s, "flash") {
 		return OTAAttemptStatusUpdating
-	}
-	if strings.Contains(s, "done") || strings.Contains(s, "success") || strings.Contains(s, "updated") || strings.Contains(s, "reboot") {
-		return OTAAttemptStatusUpdated
 	}
 	if strings.Contains(s, "fail") || strings.Contains(s, "error") {
 		return OTAAttemptStatusFailed
@@ -700,6 +700,28 @@ func (s *Service) HandleStateUpdate(ctx context.Context, deviceID string, state 
 			BadgeText:   badge,
 			BadgeColor:  badgeColor,
 		})
+	}
+
+	// If the device just came back online, close out any active OTA attempt.
+	// The firmware writes the image, verifies it, then reboots without sending a
+	// final success status — so we infer success from the device reconnecting.
+	if isOnline && !d.Online {
+		if attempt, err := s.otaRepo.GetActiveForDevice(ctx, deviceID); err == nil {
+			now := time.Now()
+			_ = s.otaRepo.AppendLog(ctx, attempt.RequestID, "Device came back online — OTA complete")
+			_ = s.otaRepo.UpdateProgress(ctx, attempt.RequestID, OTAAttemptStatusUpdated, 100, nil, &now)
+			if updated, err := s.otaRepo.GetByRequestID(ctx, attempt.RequestID); err == nil {
+				s.hub.Broadcast("ota.attempt.updated", updated)
+				_ = s.roomSvc.InsertActivityLog(ctx, &room.ActivityLog{
+					RoomID:      attempt.RoomID,
+					Timestamp:   now,
+					Title:       "OTA Flash Complete",
+					Description: "Device updated and rebooted successfully",
+					BadgeText:   "Success",
+					BadgeColor:  "bg-tertiary-fixed text-on-tertiary-fixed",
+				})
+			}
+		}
 	}
 
 	d.State = state

@@ -7,6 +7,8 @@
 #include "esp_crt_bundle.h"
 #include "esp_partition.h"
 #include "esp_app_format.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #define OTA_BUF_SIZE 4096
 
@@ -142,6 +144,7 @@ esp_err_t ota_start(const char *url, const char *client_cert, const char *client
         if (progress_cb) {
             progress_cb("updated", 100, "OTA successful, rebooting", NULL);
         }
+        vTaskDelay(pdMS_TO_TICKS(500));
         esp_restart();
 
         break;
