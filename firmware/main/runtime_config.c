@@ -172,9 +172,39 @@ static void init_runtime_config(void)
     static bool inited = false;
     if (inited) return;
 
+    // Snapshot relay_pins from the in-flash blob before load_from_nvs() can
+    // overwrite them. After an OTA update the blob is unpatched (all zeros), so
+    // we only act when the blob carries non-zero pins — meaning this is a fresh
+    // WebSerial flash, not an OTA boot.
+    uint8_t blob_relay_pins[RUNTIME_RELAY_CHANNELS_MAX];
+    memcpy(blob_relay_pins, RUNTIME_CONFIG_BLOB.relay_pins, sizeof(blob_relay_pins));
+    bool blob_has_pins = false;
+    for (int i = 0; i < RUNTIME_RELAY_CHANNELS_MAX; i++) {
+        if (blob_relay_pins[i] != 0) { blob_has_pins = true; break; }
+    }
+
     // NVS is a dedicated flash partition that OTA never touches.
     // Always check it first so config survives firmware updates.
     if (load_from_nvs()) {
+        // If the freshly-patched blob carries relay pin assignments that differ
+        // from what NVS stored (e.g. stale zeros from a prior flash), the device
+        // was re-flashed with updated pin config — refresh NVS so it takes effect
+        // without requiring a manual NVS erase.
+        if (blob_has_pins && runtime_blob_valid_v2()) {
+            bool pins_differ = false;
+            for (int i = 0; i < RUNTIME_RELAY_CHANNELS_MAX; i++) {
+                if (blob_relay_pins[i] != RUNTIME_CONFIG_BLOB.relay_pins[i]) {
+                    pins_differ = true;
+                    break;
+                }
+            }
+            if (pins_differ) {
+                memcpy(RUNTIME_CONFIG_BLOB.relay_pins, blob_relay_pins,
+                       sizeof(blob_relay_pins));
+                save_to_nvs();
+                ESP_LOGI(TAG, "Relay pins refreshed from re-flash blob");
+            }
+        }
         inited = true;
         return;
     }

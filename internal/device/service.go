@@ -196,42 +196,6 @@ func (s *Service) SendCommand(ctx context.Context, cmd Command) error {
 	if err := s.mqtt.Publish(topic, cmd); err != nil {
 		return err
 	}
-
-	if cmd.Action == "relay_set" || cmd.Action == "set_relay" {
-		if powerAny, ok := cmd.Params["power"]; ok {
-			if power, ok := powerAny.(bool); ok {
-				channelInt := 0
-				if channelAny, ok := cmd.Params["channel"]; ok {
-					switch v := channelAny.(type) {
-					case float64:
-						channelInt = int(v)
-					case int:
-						channelInt = v
-					case int64:
-						channelInt = int(v)
-					}
-				}
-				appliances, err := s.repo.ListAppliancesByDevice(ctx, cmd.DeviceID)
-				if err == nil {
-					for _, app := range appliances {
-						if app.Channel != nil && *app.Channel == channelInt {
-							if app.State == nil {
-								app.State = make(map[string]any)
-							}
-							app.State["isOn"] = power
-							app.UpdatedAt = time.Now()
-							_ = s.repo.UpdateAppliance(ctx, &app)
-							s.hub.Broadcast("appliance.state", map[string]any{
-								"appliance_id": app.ID,
-								"state":        app.State,
-							})
-						}
-					}
-				}
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -738,19 +702,21 @@ func (s *Service) HandleStateUpdate(ctx context.Context, deviceID string, state 
 			if err == nil {
 				for _, app := range appliances {
 					if app.Channel != nil && *app.Channel < len(relaysArray) && *app.Channel >= 0 {
-						if isItOn, isValid := relaysArray[*app.Channel].(bool); isValid {
-							if app.State == nil {
-								app.State = make(map[string]any)
-							}
-							if currentOn, exists := app.State["isOn"].(bool); !exists || currentOn != isItOn {
-								app.State["isOn"] = isItOn
-								app.UpdatedAt = time.Now()
-								_ = s.repo.UpdateAppliance(ctx, &app)
-								s.hub.Broadcast("appliance.state", map[string]any{
-									"appliance_id": app.ID,
-									"state":        app.State,
-								})
-							}
+						slot := relaysArray[*app.Channel]
+						// null means the relay pin is not configured on the device;
+						// treat it as off so optimistic UI updates get corrected.
+						isItOn, _ := slot.(bool)
+						if app.State == nil {
+							app.State = make(map[string]any)
+						}
+						if currentOn, exists := app.State["isOn"].(bool); !exists || currentOn != isItOn {
+							app.State["isOn"] = isItOn
+							app.UpdatedAt = time.Now()
+							_ = s.repo.UpdateAppliance(ctx, &app)
+							s.hub.Broadcast("appliance.state", map[string]any{
+								"appliance_id": app.ID,
+								"state":        app.State,
+							})
 						}
 					}
 				}

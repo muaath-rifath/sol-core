@@ -263,8 +263,9 @@ static void handle_command_json(const char *json_text) {
     publish_ota_status("cancelling", 0, "OTA cancellation requested", NULL);
   } else {
     if (s_active_driver && s_active_driver->handle_mqtt) {
-        s_active_driver->handle_mqtt(action, params, req_id);
-        publish_ack(req_id, true, "command forwarded to device driver");
+        bool ok = s_active_driver->handle_mqtt(action, params, req_id);
+        publish_ack(req_id, ok,
+                    ok ? "command executed" : "command rejected by driver");
         publish_state(true);
     } else {
         publish_ack(req_id, false, "unknown command or no driver");
