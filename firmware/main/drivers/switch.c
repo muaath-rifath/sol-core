@@ -44,49 +44,55 @@ static void switch_init(void) {
     }
 }
 
-static void switch_handle_mqtt(const char *action, const cJSON *params, const char *req_id) {
+static bool switch_handle_mqtt(const char *action, const cJSON *params, const char *req_id) {
+    (void)req_id;
     if (action == NULL) {
-        return;
+        return false;
     }
 
     if (strcmp(action, "set_relay") == 0 || strcmp(action, "relay_set") == 0) {
         cJSON *power_obj = cJSON_GetObjectItemCaseSensitive(params, "power");
         cJSON *channel_obj = cJSON_GetObjectItemCaseSensitive(params, "channel");
 
-        if (cJSON_IsBool(power_obj)) {
-            bool on = cJSON_IsTrue(power_obj);
-            int channel = 0;
-            if (cJSON_IsNumber(channel_obj)) {
-                channel = channel_obj->valueint;
-            }
-
-            if (relay_channel_valid(channel)) {
-                relay_write_channel(channel, on);
-                ESP_LOGI(TAG, "Set relay channel %d to %s", channel, on ? "ON" : "OFF");
-            } else {
-                ESP_LOGW(TAG, "Invalid relay channel %d requested", channel);
-            }
-        } else {
+        if (!cJSON_IsBool(power_obj)) {
             ESP_LOGW(TAG, "Missing 'power' boolean in '%s' action params", action);
+            return false;
         }
-    } else {
-        // Backwards compatibility or alternative format support
-        cJSON *relays = cJSON_GetObjectItem(params, "relays");
-        if (cJSON_IsArray(relays)) {
-            int i = 0;
-            cJSON *relay = NULL;
-            cJSON_ArrayForEach(relay, relays) {
-                if (i >= RUNTIME_RELAY_CHANNELS_MAX) break;
-                
-                if (cJSON_IsBool(relay) && relay_channel_valid(i)) {
-                    bool on = cJSON_IsTrue(relay);
-                    relay_write_channel(i, on);
-                    ESP_LOGI(TAG, "Set relay %d to %s via legacy array", i, on ? "ON" : "OFF");
-                }
-                i++;
-            }
+
+        bool on = cJSON_IsTrue(power_obj);
+        int channel = 0;
+        if (cJSON_IsNumber(channel_obj)) {
+            channel = channel_obj->valueint;
         }
+
+        if (!relay_channel_valid(channel)) {
+            ESP_LOGW(TAG, "Invalid relay channel %d requested (pin not configured)", channel);
+            return false;
+        }
+
+        relay_write_channel(channel, on);
+        ESP_LOGI(TAG, "Set relay channel %d to %s", channel, on ? "ON" : "OFF");
+        return true;
     }
+
+    // Legacy array format
+    cJSON *relays = cJSON_GetObjectItem(params, "relays");
+    if (cJSON_IsArray(relays)) {
+        int i = 0;
+        cJSON *relay = NULL;
+        cJSON_ArrayForEach(relay, relays) {
+            if (i >= RUNTIME_RELAY_CHANNELS_MAX) break;
+            if (cJSON_IsBool(relay) && relay_channel_valid(i)) {
+                bool on = cJSON_IsTrue(relay);
+                relay_write_channel(i, on);
+                ESP_LOGI(TAG, "Set relay %d to %s via legacy array", i, on ? "ON" : "OFF");
+            }
+            i++;
+        }
+        return true;
+    }
+
+    return false;
 }
 
 static void switch_get_state(cJSON *state) {

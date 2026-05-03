@@ -23,8 +23,9 @@ typedef struct {
      * @param action The parsed action string
      * @param params The parsed params JSON object
      * @param req_id The request ID (for sending acks)
+     * @return true if the command was accepted and executed, false otherwise
      */
-    void (*handle_mqtt)(const char *action, const cJSON *params, const char *req_id);
+    bool (*handle_mqtt)(const char *action, const cJSON *params, const char *req_id);
 
     /**
      * @brief Populate the current state into the provided JSON object.
