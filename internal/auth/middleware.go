@@ -68,6 +68,19 @@ func (m *Middleware) Wrap(next http.Handler) http.Handler {
 			return
 		}
 
+		// Enrich missing/garbage profile data from the userinfo endpoint.
+		// Zitadel access tokens often omit email/name claims; without this,
+		// users are persisted with empty strings or the literal "undefined undefined".
+		if claims.Email == "" || claims.Name == "" || claims.Name == "undefined undefined" {
+			email, name := m.verifier.Userinfo(r.Context(), token)
+			if claims.Email == "" && email != "" {
+				claims.Email = email
+			}
+			if (claims.Name == "" || claims.Name == "undefined undefined") && name != "" {
+				claims.Name = name
+			}
+		}
+
 		u, created, err := m.users.Upsert(r.Context(), claims.Subject, claims.Email, claims.Name)
 		if err != nil {
 			slog.Error("user upsert failed", "error", err)

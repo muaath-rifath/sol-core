@@ -5,13 +5,74 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"strings"
+	"time"
 )
 
-type OIDCVerifier struct{}
+type OIDCVerifier struct {
+	httpClient *http.Client
+}
 
 func NewOIDCVerifier() *OIDCVerifier {
-	return &OIDCVerifier{}
+	return &OIDCVerifier{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+	}
+}
+
+// Userinfo fetches name/email/preferred_username from the OIDC userinfo endpoint
+// using the access token. Used when the JWT body lacks profile claims (Zitadel
+// access tokens don't always include them). Returns empty strings on any error;
+// callers should treat that as "no enrichment available" rather than fatal.
+func (v *OIDCVerifier) Userinfo(ctx context.Context, token string) (email, name string) {
+	issuer := strings.TrimRight(os.Getenv("OIDC_ISSUER"), "/")
+	if issuer == "" {
+		return "", ""
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, issuer+"/oidc/v1/userinfo", nil)
+	if err != nil {
+		return "", ""
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := v.httpClient.Do(req)
+	if err != nil {
+		return "", ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", ""
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if err != nil {
+		return "", ""
+	}
+	var info struct {
+		Email      string `json:"email"`
+		Name       string `json:"name"`
+		GivenName  string `json:"given_name"`
+		FamilyName string `json:"family_name"`
+		Username   string `json:"preferred_username"`
+	}
+	if err := json.Unmarshal(body, &info); err != nil {
+		return "", ""
+	}
+	composedName := info.Name
+	if composedName == "" {
+		parts := []string{}
+		if info.GivenName != "" {
+			parts = append(parts, info.GivenName)
+		}
+		if info.FamilyName != "" {
+			parts = append(parts, info.FamilyName)
+		}
+		composedName = strings.TrimSpace(strings.Join(parts, " "))
+		if composedName == "" {
+			composedName = info.Username
+		}
+	}
+	return info.Email, composedName
 }
 
 type Claims struct {
