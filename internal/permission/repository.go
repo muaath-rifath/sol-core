@@ -248,6 +248,151 @@ func (r *Repository) ReplaceGrants(ctx context.Context, homeID, userID string, r
 	return nil
 }
 
+// ListAccessibleRoomIDs returns the IDs of all rooms the user has any effective
+// grant touching (direct room grant, device grant in room, or appliance grant in room).
+func (r *Repository) ListAccessibleRoomIDs(ctx context.Context, homeID, userID string) ([]string, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT DISTINCT room_id FROM (
+		     SELECT mp.scope_id AS room_id
+		       FROM member_permissions mp
+		       JOIN rooms rm ON rm.id = mp.scope_id AND rm.home_id = $1
+		      WHERE mp.home_id = $1 AND mp.user_id = $2 AND mp.scope_type = 'room'
+		     UNION
+		     SELECT d.room_id
+		       FROM member_permissions mp
+		       JOIN devices d ON d.id = mp.scope_id
+		       JOIN rooms rm ON rm.id = d.room_id AND rm.home_id = $1
+		      WHERE mp.home_id = $1 AND mp.user_id = $2 AND mp.scope_type = 'device'
+		     UNION
+		     SELECT a.room_id
+		       FROM member_permissions mp
+		       JOIN appliances a ON a.id = mp.scope_id
+		       JOIN rooms rm ON rm.id = a.room_id AND rm.home_id = $1
+		      WHERE mp.home_id = $1 AND mp.user_id = $2 AND mp.scope_type = 'appliance'
+		 ) sub`,
+		homeID, userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list accessible room ids: %w", err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan room id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// ListAccessibleDeviceIDs returns the IDs of all devices the user has any effective
+// grant touching (via room grant, direct device grant, or appliance grant on device).
+func (r *Repository) ListAccessibleDeviceIDs(ctx context.Context, homeID, userID string) ([]string, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT DISTINCT device_id FROM (
+		     SELECT d.id AS device_id
+		       FROM member_permissions mp
+		       JOIN devices d ON d.room_id = mp.scope_id
+		       JOIN rooms rm ON rm.id = d.room_id AND rm.home_id = $1
+		      WHERE mp.home_id = $1 AND mp.user_id = $2 AND mp.scope_type = 'room'
+		     UNION
+		     SELECT mp.scope_id AS device_id
+		       FROM member_permissions mp
+		       JOIN devices d ON d.id = mp.scope_id
+		       JOIN rooms rm ON rm.id = d.room_id AND rm.home_id = $1
+		      WHERE mp.home_id = $1 AND mp.user_id = $2 AND mp.scope_type = 'device'
+		     UNION
+		     SELECT a.device_id
+		       FROM member_permissions mp
+		       JOIN appliances a ON a.id = mp.scope_id
+		       JOIN rooms rm ON rm.id = a.room_id AND rm.home_id = $1
+		      WHERE mp.home_id = $1 AND mp.user_id = $2 AND mp.scope_type = 'appliance'
+		 ) sub`,
+		homeID, userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list accessible device ids: %w", err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan device id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// GetDeviceContext returns the (home_id, room_id) for a device. Used by
+// CheckDevice to resolve ancestors in a single query.
+func (r *Repository) GetDeviceContext(ctx context.Context, deviceID string) (homeID, roomID string, err error) {
+	err = r.pool.QueryRow(ctx,
+		`SELECT rm.home_id, d.room_id
+		   FROM devices d
+		   JOIN rooms rm ON d.room_id = rm.id
+		  WHERE d.id = $1`,
+		deviceID,
+	).Scan(&homeID, &roomID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", "", ErrNotFound
+		}
+		return "", "", fmt.Errorf("get device context: %w", err)
+	}
+	return homeID, roomID, nil
+}
+
+// CheckRoomAccess returns true if the user has any grant that touches the given room.
+func (r *Repository) CheckRoomAccess(ctx context.Context, homeID, userID, roomID string) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS (
+		     SELECT 1 FROM member_permissions mp
+		      WHERE mp.home_id = $1 AND mp.user_id = $2
+		        AND (
+		            (mp.scope_type = 'room' AND mp.scope_id = $3)
+		         OR (mp.scope_type = 'device'
+		             AND mp.scope_id IN (SELECT id FROM devices WHERE room_id = $3))
+		         OR (mp.scope_type = 'appliance'
+		             AND mp.scope_id IN (SELECT id FROM appliances WHERE room_id = $3))
+		        )
+		 )`,
+		homeID, userID, roomID,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("check room access: %w", err)
+	}
+	return exists, nil
+}
+
+// HasEffectiveDeviceGrant returns true if the user has any grant that covers the
+// given device: a room grant on the device's parent room, a direct device grant,
+// or an appliance grant on any appliance belonging to the device.
+func (r *Repository) HasEffectiveDeviceGrant(ctx context.Context, homeID, userID, roomID, deviceID string) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS (
+		     SELECT 1 FROM member_permissions mp
+		      WHERE mp.home_id = $1 AND mp.user_id = $2
+		        AND (
+		            (mp.scope_type = 'room'   AND mp.scope_id = $3)
+		         OR (mp.scope_type = 'device' AND mp.scope_id = $4)
+		         OR (mp.scope_type = 'appliance'
+		             AND mp.scope_id IN (SELECT id FROM appliances WHERE device_id = $4))
+		        )
+		 )`,
+		homeID, userID, roomID, deviceID,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("has effective device grant: %w", err)
+	}
+	return exists, nil
+}
+
 // ExpandToApplianceIDs expands a set of grant rows into the full set of
 // appliance IDs the user can access. It runs three queries in parallel-ready
 // fashion: appliance grants pass through directly, device grants expand to

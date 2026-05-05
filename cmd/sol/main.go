@@ -147,6 +147,7 @@ func main() {
 	permSvc := permission.NewService(permRepo)
 	permHandler := permission.NewHandler(permSvc, roomSvc, deviceSvc)
 	deviceSvc.SetPermissionGate(permSvc)
+	roomSvc.SetPermissionGate(permSvc)
 
 	// MCP Server
 	mcpServer := mcp.NewServer(deviceSvc, roomSvc)

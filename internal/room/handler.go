@@ -28,6 +28,37 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	homeID := r.PathValue("homeId")
 	cursor := r.URL.Query().Get("cursor")
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+
+	if gate := h.svc.PermGate(); gate != nil {
+		ids, allAccess, err := gate.ListAccessibleRoomIDs(r.Context(), homeID, u.ID)
+		if err != nil {
+			slog.Error("list rooms: permission filter", "error", err)
+			writeError(w, http.StatusInternalServerError, "internal")
+			return
+		}
+		if !allAccess {
+			if len(ids) == 0 {
+				writeJSON(w, http.StatusOK, &CursorResponse[Room]{Data: []Room{}})
+				return
+			}
+			rooms, err := h.svc.ListFiltered(r.Context(), homeID, ids, cursor, limit)
+			if err != nil {
+				if errors.Is(err, ErrValidation) {
+					writeError(w, http.StatusUnprocessableEntity, "invalid cursor")
+					return
+				}
+				slog.Error("list rooms filtered", "error", err)
+				writeError(w, http.StatusInternalServerError, "internal")
+				return
+			}
+			if rooms.Data == nil {
+				rooms.Data = []Room{}
+			}
+			writeJSON(w, http.StatusOK, rooms)
+			return
+		}
+	}
+
 	rooms, err := h.svc.List(r.Context(), homeID, cursor, limit)
 	if err != nil {
 		if errors.Is(err, ErrValidation) {
@@ -51,6 +82,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	homeID := r.PathValue("homeId")
+	if gate := h.svc.PermGate(); gate != nil {
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			writeError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+	}
 	var req CreateRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -77,6 +115,18 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	homeID := r.PathValue("homeId")
 	roomID := r.PathValue("roomId")
+	if gate := h.svc.PermGate(); gate != nil {
+		ok, err := gate.CheckRoomAccess(r.Context(), u.ID, homeID, roomID)
+		if err != nil {
+			slog.Error("get room: check access", "error", err)
+			writeError(w, http.StatusInternalServerError, "internal")
+			return
+		}
+		if !ok {
+			writeError(w, http.StatusNotFound, "room not found")
+			return
+		}
+	}
 	room, err := h.svc.Get(r.Context(), roomID, homeID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "room not found")
@@ -93,6 +143,13 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	homeID := r.PathValue("homeId")
 	roomID := r.PathValue("roomId")
+	if gate := h.svc.PermGate(); gate != nil {
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			writeError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+	}
 	var req UpdateRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -115,6 +172,13 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	homeID := r.PathValue("homeId")
 	roomID := r.PathValue("roomId")
+	if gate := h.svc.PermGate(); gate != nil {
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			writeError(w, http.StatusForbidden, "forbidden")
+			return
+		}
+	}
 	if err := h.svc.Delete(r.Context(), roomID, homeID); err != nil {
 		writeError(w, http.StatusNotFound, "room not found")
 		return
@@ -142,6 +206,18 @@ func (h *Handler) ListActivity(w http.ResponseWriter, r *http.Request) {
 	}
 	homeID := r.PathValue("homeId")
 	roomID := r.PathValue("roomId")
+	if gate := h.svc.PermGate(); gate != nil {
+		ok, err := gate.CheckRoomAccess(r.Context(), u.ID, homeID, roomID)
+		if err != nil {
+			slog.Error("list activity: check access", "error", err)
+			writeError(w, http.StatusInternalServerError, "internal")
+			return
+		}
+		if !ok {
+			writeError(w, http.StatusNotFound, "room not found")
+			return
+		}
+	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit <= 0 {
 		limit = 20
