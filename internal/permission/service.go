@@ -219,6 +219,76 @@ func (s *Service) CheckDevice(ctx context.Context, userID, deviceID string) (boo
 	return s.repo.HasEffectiveDeviceGrant(ctx, homeID, userID, roomID, deviceID)
 }
 
+// CanManageRoom returns true if userID holds a can_manage_devices capability for roomID.
+// Owners and admins always return true.
+func (s *Service) CanManageRoom(ctx context.Context, homeID, userID, roomID string) (bool, error) {
+	role, err := s.repo.GetMemberRole(ctx, homeID, userID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if role == "owner" || role == "admin" {
+		return true, nil
+	}
+	return s.repo.CanManageRoom(ctx, homeID, userID, roomID)
+}
+
+// ListManagedRoomIDs returns the room IDs for which userID holds can_manage_devices.
+func (s *Service) ListManagedRoomIDs(ctx context.Context, homeID, userID string) ([]string, error) {
+	return s.repo.ListManagedRoomIDs(ctx, homeID, userID)
+}
+
+// SetRoomCapabilities replaces the room management capabilities for targetUserID.
+// Caller must be owner or admin. Target must be a member.
+// managedRoomIDs must all belong to homeID; empty slice clears all capabilities.
+func (s *Service) SetRoomCapabilities(ctx context.Context, callerID, homeID, targetUserID string, managedRoomIDs []string) error {
+	callerRole, err := s.repo.GetMemberRole(ctx, homeID, callerID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ErrForbidden
+		}
+		return err
+	}
+	if callerRole != "owner" && callerRole != "admin" {
+		return ErrForbidden
+	}
+
+	targetRole, err := s.repo.GetMemberRole(ctx, homeID, targetUserID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if targetRole != "member" {
+		return fmt.Errorf("%w: target user role '%s' cannot have scoped capabilities", ErrForbidden, targetRole)
+	}
+
+	if len(managedRoomIDs) > 0 {
+		refs := make([]ScopeRef, len(managedRoomIDs))
+		for i, id := range managedRoomIDs {
+			refs[i] = ScopeRef{Type: ScopeRoom, ID: id}
+		}
+		filtered, err := s.repo.FilterScopesForHome(ctx, homeID, refs)
+		if err != nil {
+			return err
+		}
+		if len(filtered) != len(refs) {
+			return fmt.Errorf("%w: one or more rooms do not belong to this home", ErrValidation)
+		}
+	}
+
+	return s.repo.SetRoomCapabilities(ctx, homeID, targetUserID, managedRoomIDs, &callerID)
+}
+
+// InsertApplianceGrant adds an appliance-level grant for a user.
+// Used to auto-grant access to appliances a manage-capable member creates.
+func (s *Service) InsertApplianceGrant(ctx context.Context, homeID, userID, applianceID string, grantedBy *string) error {
+	return s.repo.InsertApplianceGrant(ctx, homeID, userID, applianceID, grantedBy)
+}
+
 // SetGrants replaces the grant set for (targetUserID) in homeID.
 // Caller must be owner or admin of homeID. Target must be a 'member' (not owner/admin).
 // Refs that don't belong to homeID are rejected as ErrValidation.

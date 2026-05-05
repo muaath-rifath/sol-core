@@ -80,6 +80,8 @@ type PermissionGate interface {
 	ListAccessibleDeviceIDs(ctx context.Context, homeID, userID string) (ids []string, allAccess bool, err error)
 	MemberRole(ctx context.Context, homeID, userID string) (string, error)
 	CheckDevice(ctx context.Context, userID, deviceID string) (bool, error)
+	CanManageRoom(ctx context.Context, homeID, userID, roomID string) (bool, error)
+	InsertApplianceGrant(ctx context.Context, homeID, userID, applianceID string, grantedBy *string) error
 }
 
 type Service struct {
