@@ -21,6 +21,7 @@ import (
 	"github.com/muaathrifath/sol-core/internal/home"
 	"github.com/muaathrifath/sol-core/internal/mcp"
 	"github.com/muaathrifath/sol-core/internal/mqtt"
+	"github.com/muaathrifath/sol-core/internal/permission"
 	"github.com/muaathrifath/sol-core/internal/platform"
 	"github.com/muaathrifath/sol-core/internal/room"
 	"github.com/muaathrifath/sol-core/internal/user"
@@ -141,6 +142,12 @@ func main() {
 	automationSvc := automation.NewService(automationRepo, deviceSvc, aiClient)
 	automationHandler := automation.NewHandler(automationSvc)
 
+	// Permission service — must be wired before MCP / device gating.
+	permRepo := permission.NewRepository(pgPool)
+	permSvc := permission.NewService(permRepo)
+	permHandler := permission.NewHandler(permSvc, roomSvc, deviceSvc)
+	deviceSvc.SetPermissionGate(permSvc)
+
 	// MCP Server
 	mcpServer := mcp.NewServer(deviceSvc, roomSvc)
 
@@ -148,7 +155,9 @@ func main() {
 	mqttHandler := mqtt.NewHandler(deviceSvc, hub)
 	mqttClient.SetMessageHandler(mqttHandler.Handle)
 
-	// WS command handler — routes device.command messages from browser clients
+	// WS command handler — routes device.command messages from browser clients.
+	// Inject the authenticated user into the context so the device gate can
+	// look it up via user.FromContext (matches the HTTP auth middleware).
 	hub.SetCommandHandler(func(ctx context.Context, u *user.User, msg ws.ClientMessage) error {
 		if msg.Type != "device.command" {
 			return nil
@@ -156,6 +165,9 @@ func main() {
 		var req device.WSCommandRequest
 		if err := json.Unmarshal(msg.Data, &req); err != nil {
 			return fmt.Errorf("invalid command payload")
+		}
+		if u != nil {
+			ctx = user.WithContext(ctx, u)
 		}
 		return deviceSvc.SendCommandForUser(ctx, req)
 	})
@@ -191,6 +203,8 @@ func main() {
 	mux.Handle("POST /api/v1/homes/{id}/members", authMiddleware.Wrap(http.HandlerFunc(homeHandler.AddMember)))
 	mux.Handle("PATCH /api/v1/homes/{id}/members/{userId}/role", authMiddleware.Wrap(http.HandlerFunc(homeHandler.UpdateMemberRole)))
 	mux.Handle("DELETE /api/v1/homes/{id}/members/{userId}", authMiddleware.Wrap(http.HandlerFunc(homeHandler.RemoveMember)))
+	mux.Handle("GET /api/v1/homes/{id}/members/{userId}/permissions", authMiddleware.Wrap(http.HandlerFunc(permHandler.GetPermissions)))
+	mux.Handle("PUT /api/v1/homes/{id}/members/{userId}/permissions", authMiddleware.Wrap(http.HandlerFunc(permHandler.PutPermissions)))
 	mux.Handle("POST /api/v1/homes/{id}/invitations", authMiddleware.Wrap(http.HandlerFunc(homeHandler.InviteByEmail)))
 	mux.Handle("GET /api/v1/homes/{id}/invitations", authMiddleware.Wrap(http.HandlerFunc(homeHandler.ListInvitations)))
 	mux.Handle("DELETE /api/v1/homes/{id}/invitations/{invId}", authMiddleware.Wrap(http.HandlerFunc(homeHandler.CancelInvitation)))

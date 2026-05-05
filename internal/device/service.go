@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/muaathrifath/sol-core/internal/mqtt"
 	"github.com/muaathrifath/sol-core/internal/room"
+	"github.com/muaathrifath/sol-core/internal/user"
 	"github.com/muaathrifath/sol-core/internal/ws"
 )
 
@@ -68,12 +69,24 @@ func buildCursorResponse[T any](items []T, limit int, cursorFn func(T) (time.Tim
 	return resp
 }
 
+// PermissionGate describes the subset of the permission service that the
+// device package needs. Defined here (and satisfied by *permission.Service)
+// to avoid an import of the permission package, keeping the dependency graph
+// one-directional.
+type PermissionGate interface {
+	CheckAppliance(ctx context.Context, userID, applianceID string) (bool, error)
+	CheckApplianceByChannel(ctx context.Context, userID, deviceID string, channel int) (applianceID string, allowed bool, err error)
+	ListAccessibleApplianceIDs(ctx context.Context, homeID, userID string) (ids []string, allAccess bool, err error)
+	MemberRole(ctx context.Context, homeID, userID string) (string, error)
+}
+
 type Service struct {
 	repo              *Repository
 	otaRepo           *OTAAttemptRepository
 	roomSvc           *room.Service
 	mqtt              *mqtt.Client
 	hub               *ws.Hub
+	permGate          PermissionGate
 	onlineFreshness   time.Duration
 	otaAttemptTimeout time.Duration
 }
@@ -94,6 +107,31 @@ func NewService(repo *Repository, otaRepo *OTAAttemptRepository, roomSvc *room.S
 		onlineFreshness:   onlineFreshness,
 		otaAttemptTimeout: otaAttemptTimeout,
 	}
+}
+
+// HomeIDForDevice resolves a device's home_id by walking devices → rooms.
+func (s *Service) HomeIDForDevice(ctx context.Context, deviceID string) (string, error) {
+	return s.repo.GetHomeIDByDevice(ctx, deviceID)
+}
+
+// HomeIDForAppliance resolves an appliance's home_id.
+func (s *Service) HomeIDForAppliance(ctx context.Context, applianceID string) (string, error) {
+	return s.repo.GetHomeIDByAppliance(ctx, applianceID)
+}
+
+// SetPermissionGate wires in the permission service after construction. Called
+// from main.go because device and permission services are built on the same
+// pgx pool and reference each other indirectly — wiring after construction
+// keeps NewService's signature stable.
+func (s *Service) SetPermissionGate(g PermissionGate) {
+	s.permGate = g
+}
+
+// PermGate returns the wired-in permission gate, or nil if not wired.
+// Handlers use this to gate per-appliance access; nil means enforcement
+// is disabled (treat as "allow all members").
+func (s *Service) PermGate() PermissionGate {
+	return s.permGate
 }
 
 func (s *Service) OnlineFreshness() time.Duration {
@@ -199,8 +237,9 @@ func (s *Service) SendCommand(ctx context.Context, cmd Command) error {
 	return nil
 }
 
-// SendCommandForUser validates ownership then delegates to SendCommand.
-// Mirrors the authorization checks the HTTP handler applies.
+// SendCommandForUser validates ownership and per-appliance permission, then
+// delegates to SendCommand. The caller must inject the user via user.WithContext
+// before invoking. Mirrors the authorization checks the HTTP handler applies.
 func (s *Service) SendCommandForUser(ctx context.Context, req WSCommandRequest) error {
 	if req.DeviceID == "" || req.Action == "" {
 		return fmt.Errorf("device_id and action are required")
@@ -219,11 +258,80 @@ func (s *Service) SendCommandForUser(ctx context.Context, req WSCommandRequest) 
 			return fmt.Errorf("device not found")
 		}
 	}
+	if err := s.GateCommand(ctx, req.HomeID, req.DeviceID, req.Params); err != nil {
+		return err
+	}
 	return s.SendCommand(ctx, Command{
 		DeviceID: req.DeviceID,
 		Action:   req.Action,
 		Params:   req.Params,
 	})
+}
+
+// GateCommand checks the caller's permission to send a command targeting the
+// given device. If a `channel` field is present in params, the gate resolves
+// the appliance and checks per-appliance access. Owners and admins always pass.
+// Returns nil when no permission gate is wired (enforcement disabled) or when
+// no caller is on the context (legacy / internal callers).
+func (s *Service) GateCommand(ctx context.Context, homeID, deviceID string, params map[string]any) error {
+	if s.permGate == nil {
+		return nil
+	}
+	u := user.FromContext(ctx)
+	if u == nil {
+		return fmt.Errorf("unauthorized")
+	}
+
+	if homeID == "" {
+		hid, err := s.repo.GetHomeIDByDevice(ctx, deviceID)
+		if err != nil {
+			return fmt.Errorf("forbidden: cannot resolve home for device")
+		}
+		homeID = hid
+	}
+
+	role, err := s.permGate.MemberRole(ctx, homeID, u.ID)
+	if err != nil {
+		return fmt.Errorf("forbidden")
+	}
+	if role == "owner" || role == "admin" {
+		return nil
+	}
+
+	channel, ok := extractChannel(params)
+	if !ok {
+		// Without a channel the command targets the whole switchboard; members
+		// are not permitted device-wide commands.
+		return fmt.Errorf("forbidden: members must specify a channel")
+	}
+
+	_, allowed, err := s.permGate.CheckApplianceByChannel(ctx, u.ID, deviceID, channel)
+	if err != nil {
+		return fmt.Errorf("forbidden")
+	}
+	if !allowed {
+		return fmt.Errorf("forbidden")
+	}
+	return nil
+}
+
+func extractChannel(params map[string]any) (int, bool) {
+	if params == nil {
+		return 0, false
+	}
+	v, ok := params["channel"]
+	if !ok {
+		return 0, false
+	}
+	switch n := v.(type) {
+	case int:
+		return n, true
+	case int64:
+		return int(n), true
+	case float64:
+		return int(n), true
+	}
+	return 0, false
 }
 
 func (s *Service) TriggerOTA(ctx context.Context, d *Device, homeID, roomID, firmwareVersionID string, requestedBy *string, idempotencyKey *string) (*OTAAttempt, error) {

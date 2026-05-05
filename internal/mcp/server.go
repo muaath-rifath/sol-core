@@ -1,3 +1,14 @@
+// TODO(permissions): wire permission.Service into MCP. Steps:
+//  1. Wrap mcp/sse mount in cmd/sol/main.go with authMiddleware so tool calls
+//     have a *user.User on the context.
+//  2. Pass *permission.Service into NewServer.
+//  3. list_appliances: require home_id arg; call
+//     permSvc.ListAccessibleApplianceIDs(ctx, homeID, u.ID); filter
+//     deviceSvc.ListAllAppliances by the returned IDs (skip filter when
+//     allAccess is true).
+//  4. set_appliance_state: call permSvc.CheckAppliance(ctx, u.ID,
+//     args.ApplianceID) before issuing the command.
+
 package mcp
 
 import (
