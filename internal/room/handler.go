@@ -29,37 +29,32 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	cursor := r.URL.Query().Get("cursor")
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 
+	var rooms *CursorResponse[Room]
+	var err error
+	var allAccess bool
+
 	if gate := h.svc.PermGate(); gate != nil {
-		ids, allAccess, err := gate.ListAccessibleRoomIDs(r.Context(), homeID, u.ID)
-		if err != nil {
-			slog.Error("list rooms: permission filter", "error", err)
+		ids, aa, perr := gate.ListAccessibleRoomIDs(r.Context(), homeID, u.ID)
+		if perr != nil {
+			slog.Error("list rooms: permission filter", "error", perr)
 			writeError(w, http.StatusInternalServerError, "internal")
 			return
 		}
+		allAccess = aa
 		if !allAccess {
 			if len(ids) == 0 {
 				writeJSON(w, http.StatusOK, &CursorResponse[Room]{Data: []Room{}})
 				return
 			}
-			rooms, err := h.svc.ListFiltered(r.Context(), homeID, ids, cursor, limit)
-			if err != nil {
-				if errors.Is(err, ErrValidation) {
-					writeError(w, http.StatusUnprocessableEntity, "invalid cursor")
-					return
-				}
-				slog.Error("list rooms filtered", "error", err)
-				writeError(w, http.StatusInternalServerError, "internal")
-				return
-			}
-			if rooms.Data == nil {
-				rooms.Data = []Room{}
-			}
-			writeJSON(w, http.StatusOK, rooms)
-			return
+			rooms, err = h.svc.ListFiltered(r.Context(), homeID, ids, cursor, limit)
+		} else {
+			rooms, err = h.svc.List(r.Context(), homeID, cursor, limit)
 		}
+	} else {
+		allAccess = true
+		rooms, err = h.svc.List(r.Context(), homeID, cursor, limit)
 	}
 
-	rooms, err := h.svc.List(r.Context(), homeID, cursor, limit)
 	if err != nil {
 		if errors.Is(err, ErrValidation) {
 			writeError(w, http.StatusUnprocessableEntity, "invalid cursor")
@@ -69,9 +64,26 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal")
 		return
 	}
+
 	if rooms.Data == nil {
 		rooms.Data = []Room{}
 	}
+
+	if gate := h.svc.PermGate(); gate != nil {
+		for i := range rooms.Data {
+			if allAccess {
+				rooms.Data[i].CanManage = true
+			} else {
+				ok, _ := gate.CanManageRoom(r.Context(), homeID, u.ID, rooms.Data[i].ID)
+				rooms.Data[i].CanManage = ok
+			}
+		}
+	} else {
+		for i := range rooms.Data {
+			rooms.Data[i].CanManage = true
+		}
+	}
+
 	writeJSON(w, http.StatusOK, rooms)
 }
 
@@ -132,6 +144,19 @@ func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "room not found")
 		return
 	}
+
+	if gate := h.svc.PermGate(); gate != nil {
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err == nil && (role == "owner" || role == "admin") {
+			room.CanManage = true
+		} else {
+			ok, _ := gate.CanManageRoom(r.Context(), homeID, u.ID, roomID)
+			room.CanManage = ok
+		}
+	} else {
+		room.CanManage = true
+	}
+
 	writeJSON(w, http.StatusOK, room)
 }
 

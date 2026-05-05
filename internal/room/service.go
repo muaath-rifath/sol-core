@@ -18,6 +18,7 @@ type PermissionGate interface {
 	MemberRole(ctx context.Context, homeID, userID string) (string, error)
 	ListAccessibleRoomIDs(ctx context.Context, homeID, userID string) (ids []string, allAccess bool, err error)
 	CheckRoomAccess(ctx context.Context, userID, homeID, roomID string) (bool, error)
+	CanManageRoom(ctx context.Context, homeID, userID, roomID string) (bool, error)
 }
 
 const defaultLimit = 20
