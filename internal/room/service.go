@@ -78,6 +78,13 @@ func (s *Service) Get(ctx context.Context, id, homeID string) (*Room, error) {
 	return s.repo.GetByID(ctx, id, homeID)
 }
 
+// ListAllByHome returns every room in a home (no pagination). Suitable for
+// internal callers like the permission tree composer where the room count is
+// bounded.
+func (s *Service) ListAllByHome(ctx context.Context, homeID string) ([]Room, error) {
+	return s.repo.ListByHome(ctx, homeID)
+}
+
 func (s *Service) List(ctx context.Context, homeID, cursor string, limit int) (*CursorResponse[Room], error) {
 	limit = normalizeLimit(limit)
 	cursorTime, cursorID, err := decodeCursor(cursor)

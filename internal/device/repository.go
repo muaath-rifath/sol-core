@@ -30,6 +30,37 @@ func (r *Repository) Create(ctx context.Context, d *Device) error {
 	return nil
 }
 
+// GetHomeIDByDevice returns the home_id for a device by walking devices → rooms.
+// Returns an error wrapping pgx.ErrNoRows when the device or its room is missing.
+func (r *Repository) GetHomeIDByDevice(ctx context.Context, deviceID string) (string, error) {
+	var homeID string
+	err := r.pool.QueryRow(ctx,
+		`SELECT r.home_id FROM devices d
+		   JOIN rooms r ON d.room_id = r.id
+		  WHERE d.id = $1`,
+		deviceID,
+	).Scan(&homeID)
+	if err != nil {
+		return "", fmt.Errorf("get home id by device: %w", err)
+	}
+	return homeID, nil
+}
+
+// GetHomeIDByAppliance returns the home_id for an appliance.
+func (r *Repository) GetHomeIDByAppliance(ctx context.Context, applianceID string) (string, error) {
+	var homeID string
+	err := r.pool.QueryRow(ctx,
+		`SELECT r.home_id FROM appliances a
+		   JOIN rooms r ON a.room_id = r.id
+		  WHERE a.id = $1`,
+		applianceID,
+	).Scan(&homeID)
+	if err != nil {
+		return "", fmt.Errorf("get home id by appliance: %w", err)
+	}
+	return homeID, nil
+}
+
 func (r *Repository) GetByID(ctx context.Context, id string) (*Device, error) {
 	var d Device
 	err := r.pool.QueryRow(ctx,

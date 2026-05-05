@@ -1,6 +1,7 @@
 package device
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -198,6 +199,11 @@ func (h *Handler) Command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cmd.DeviceID = id
+
+	if err := h.svc.GateCommand(r.Context(), homeID, id, cmd.Params); err != nil {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		return
+	}
 
 	if err := h.svc.SendCommand(r.Context(), cmd); err != nil {
 		slog.Error("send command", "error", err)
@@ -677,6 +683,11 @@ func (h *Handler) DownloadOTAFirmware(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateAppliance(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	if r.Body == nil {
 		http.Error(w, `{"error":"missing request body"}`, http.StatusBadRequest)
 		return
@@ -685,6 +696,19 @@ func (h *Handler) CreateAppliance(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
+	}
+
+	if gate := h.svc.PermGate(); gate != nil && req.DeviceID != "" {
+		homeID, err := h.svc.HomeIDForDevice(r.Context(), req.DeviceID)
+		if err != nil {
+			http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+			return
+		}
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
 	}
 
 	app, err := h.svc.CreateAppliance(r.Context(), req)
@@ -697,16 +721,34 @@ func (h *Handler) CreateAppliance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetAppliance(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	id := r.PathValue("applianceId")
 	app, err := h.svc.GetAppliance(r.Context(), id)
 	if err != nil {
 		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 		return
 	}
+	if gate := h.svc.PermGate(); gate != nil {
+		ok, err := gate.CheckAppliance(r.Context(), u.ID, id)
+		if err != nil || !ok {
+			// 404 rather than 403 to avoid leaking existence to non-members.
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, app)
 }
 
 func (h *Handler) UpdateAppliance(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	id := r.PathValue("applianceId")
 	if r.Body == nil {
 		http.Error(w, `{"error":"missing request body"}`, http.StatusBadRequest)
@@ -715,6 +757,11 @@ func (h *Handler) UpdateAppliance(w http.ResponseWriter, r *http.Request) {
 	var req UpdateApplianceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	if err := h.requireApplianceManager(r.Context(), id, u.ID); err != nil {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 
@@ -728,7 +775,18 @@ func (h *Handler) UpdateAppliance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteAppliance(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	id := r.PathValue("applianceId")
+
+	if err := h.requireApplianceManager(r.Context(), id, u.ID); err != nil {
+		http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		return
+	}
+
 	if err := h.svc.DeleteAppliance(r.Context(), id); err != nil {
 		slog.Error("delete appliance", "error", err)
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
@@ -737,7 +795,37 @@ func (h *Handler) DeleteAppliance(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// requireApplianceManager returns nil when the user is owner or admin of the
+// home that owns the appliance. Returns a non-nil error otherwise (forbidden).
+// When the permission gate is not wired, returns nil.
+func (h *Handler) requireApplianceManager(ctx context.Context, applianceID, userID string) error {
+	gate := h.svc.PermGate()
+	if gate == nil {
+		return nil
+	}
+	homeID, err := h.svc.HomeIDForAppliance(ctx, applianceID)
+	if err != nil {
+		return err
+	}
+	role, err := gate.MemberRole(ctx, homeID, userID)
+	if err != nil {
+		return err
+	}
+	if role != "owner" && role != "admin" {
+		return errForbidden
+	}
+	return nil
+}
+
+var errForbidden = errors.New("forbidden")
+
 func (h *Handler) ListAppliancesByRoom(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	homeID := r.PathValue("homeId")
 	roomID := r.PathValue("roomId")
 	apps, err := h.svc.ListAppliancesByRoom(r.Context(), roomID)
 	if err != nil {
@@ -748,7 +836,32 @@ func (h *Handler) ListAppliancesByRoom(w http.ResponseWriter, r *http.Request) {
 	if apps == nil {
 		apps = []Appliance{}
 	}
-	// Wrapping inside array cursor response style or just array? Just data array.
+
+	if gate := h.svc.PermGate(); gate != nil && homeID != "" {
+		allowed, allAccess, err := gate.ListAccessibleApplianceIDs(r.Context(), homeID, u.ID)
+		if err != nil {
+			slog.Error("permission filter", "error", err)
+			http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+			return
+		}
+		if !allAccess {
+			set := map[string]struct{}{}
+			for _, id := range allowed {
+				set[id] = struct{}{}
+			}
+			filtered := apps[:0]
+			for _, a := range apps {
+				if _, ok := set[a.ID]; ok {
+					filtered = append(filtered, a)
+				}
+			}
+			apps = filtered
+			if apps == nil {
+				apps = []Appliance{}
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{"data": apps})
 }
 
