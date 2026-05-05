@@ -249,7 +249,8 @@ func (r *Repository) ReplaceGrants(ctx context.Context, homeID, userID string, r
 }
 
 // ListAccessibleRoomIDs returns the IDs of all rooms the user has any effective
-// grant touching (direct room grant, device grant in room, or appliance grant in room).
+// grant touching (direct room grant, device grant in room, appliance grant in room,
+// or a manage-devices capability on the room).
 func (r *Repository) ListAccessibleRoomIDs(ctx context.Context, homeID, userID string) ([]string, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT DISTINCT room_id FROM (
@@ -269,6 +270,11 @@ func (r *Repository) ListAccessibleRoomIDs(ctx context.Context, homeID, userID s
 		       JOIN appliances a ON a.id = mp.scope_id
 		       JOIN rooms rm ON rm.id = a.room_id AND rm.home_id = $1
 		      WHERE mp.home_id = $1 AND mp.user_id = $2 AND mp.scope_type = 'appliance'
+		     UNION
+		     SELECT mrc.room_id
+		       FROM member_room_capabilities mrc
+		       JOIN rooms rm ON rm.id = mrc.room_id AND rm.home_id = $1
+		      WHERE mrc.home_id = $1 AND mrc.user_id = $2 AND mrc.can_manage_devices = true
 		 ) sub`,
 		homeID, userID,
 	)
@@ -288,7 +294,8 @@ func (r *Repository) ListAccessibleRoomIDs(ctx context.Context, homeID, userID s
 }
 
 // ListAccessibleDeviceIDs returns the IDs of all devices the user has any effective
-// grant touching (via room grant, direct device grant, or appliance grant on device).
+// grant touching (via room grant, direct device grant, appliance grant on device,
+// or a manage-devices capability on the device's room).
 func (r *Repository) ListAccessibleDeviceIDs(ctx context.Context, homeID, userID string) ([]string, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT DISTINCT device_id FROM (
@@ -309,6 +316,12 @@ func (r *Repository) ListAccessibleDeviceIDs(ctx context.Context, homeID, userID
 		       JOIN appliances a ON a.id = mp.scope_id
 		       JOIN rooms rm ON rm.id = a.room_id AND rm.home_id = $1
 		      WHERE mp.home_id = $1 AND mp.user_id = $2 AND mp.scope_type = 'appliance'
+		     UNION
+		     SELECT d.id AS device_id
+		       FROM member_room_capabilities mrc
+		       JOIN devices d ON d.room_id = mrc.room_id
+		       JOIN rooms rm ON rm.id = d.room_id AND rm.home_id = $1
+		      WHERE mrc.home_id = $1 AND mrc.user_id = $2 AND mrc.can_manage_devices = true
 		 ) sub`,
 		homeID, userID,
 	)
@@ -346,7 +359,8 @@ func (r *Repository) GetDeviceContext(ctx context.Context, deviceID string) (hom
 	return homeID, roomID, nil
 }
 
-// CheckRoomAccess returns true if the user has any grant that touches the given room.
+// CheckRoomAccess returns true if the user has any grant that touches the given room,
+// or has a manage-devices capability on it.
 func (r *Repository) CheckRoomAccess(ctx context.Context, homeID, userID, roomID string) (bool, error) {
 	var exists bool
 	err := r.pool.QueryRow(ctx,
@@ -360,6 +374,10 @@ func (r *Repository) CheckRoomAccess(ctx context.Context, homeID, userID, roomID
 		         OR (mp.scope_type = 'appliance'
 		             AND mp.scope_id IN (SELECT id FROM appliances WHERE room_id = $3))
 		        )
+		 )
+		 OR EXISTS (
+		     SELECT 1 FROM member_room_capabilities
+		      WHERE home_id = $1 AND user_id = $2 AND room_id = $3 AND can_manage_devices = true
 		 )`,
 		homeID, userID, roomID,
 	).Scan(&exists)
@@ -461,4 +479,90 @@ func (r *Repository) ExpandToApplianceIDs(ctx context.Context, homeID string, gr
 		ids = append(ids, id)
 	}
 	return ids, nil
+}
+
+// CanManageRoom returns true if the user holds a can_manage_devices capability for the room.
+func (r *Repository) CanManageRoom(ctx context.Context, homeID, userID, roomID string) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS (
+		     SELECT 1 FROM member_room_capabilities
+		      WHERE home_id = $1 AND user_id = $2 AND room_id = $3 AND can_manage_devices = true
+		 )`,
+		homeID, userID, roomID,
+	).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("can manage room: %w", err)
+	}
+	return exists, nil
+}
+
+// ListManagedRoomIDs returns the room IDs for which the user holds can_manage_devices.
+func (r *Repository) ListManagedRoomIDs(ctx context.Context, homeID, userID string) ([]string, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT room_id FROM member_room_capabilities
+		  WHERE home_id = $1 AND user_id = $2 AND can_manage_devices = true`,
+		homeID, userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list managed room ids: %w", err)
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan managed room id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// SetRoomCapabilities atomically replaces the manage-devices capabilities for
+// (homeID, userID). An empty managedRoomIDs slice clears all capabilities.
+func (r *Repository) SetRoomCapabilities(ctx context.Context, homeID, userID string, managedRoomIDs []string, grantedBy *string) error {
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("set room capabilities begin: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM member_room_capabilities WHERE home_id = $1 AND user_id = $2`,
+		homeID, userID,
+	); err != nil {
+		return fmt.Errorf("set room capabilities delete: %w", err)
+	}
+
+	for _, roomID := range managedRoomIDs {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO member_room_capabilities (home_id, user_id, room_id, can_manage_devices, granted_by)
+			 VALUES ($1, $2, $3, true, $4)
+			 ON CONFLICT (home_id, user_id, room_id) DO UPDATE SET can_manage_devices = true, granted_by = $4`,
+			homeID, userID, roomID, grantedBy,
+		); err != nil {
+			return fmt.Errorf("set room capabilities insert: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("set room capabilities commit: %w", err)
+	}
+	return nil
+}
+
+// InsertApplianceGrant adds an appliance-level grant for the user. Used to
+// auto-grant access to appliances a manage-capable member creates themselves.
+func (r *Repository) InsertApplianceGrant(ctx context.Context, homeID, userID, applianceID string, grantedBy *string) error {
+	_, err := r.pool.Exec(ctx,
+		`INSERT INTO member_permissions (home_id, user_id, scope_type, scope_id, granted_by)
+		 VALUES ($1, $2, 'appliance', $3, $4)
+		 ON CONFLICT (home_id, user_id, scope_type, scope_id) DO NOTHING`,
+		homeID, userID, applianceID, grantedBy,
+	)
+	if err != nil {
+		return fmt.Errorf("insert appliance grant: %w", err)
+	}
+	return nil
 }

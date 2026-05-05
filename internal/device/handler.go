@@ -122,10 +122,13 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
 			return
 		}
-		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
-		if err != nil || (role != "owner" && role != "admin") {
-			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
-			return
+		role, _ := gate.MemberRole(r.Context(), homeID, u.ID)
+		if role != "owner" && role != "admin" {
+			ok, _ := gate.CanManageRoom(r.Context(), homeID, u.ID, req.RoomID)
+			if !ok {
+				http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 		}
 	}
 
@@ -195,15 +198,23 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	if gate := h.svc.PermGate(); gate != nil {
+		dev, err := h.svc.Get(r.Context(), id)
+		if err != nil {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
 		homeID, err := h.svc.HomeIDForDevice(r.Context(), id)
 		if err != nil {
 			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 			return
 		}
-		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
-		if err != nil || (role != "owner" && role != "admin") {
-			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
-			return
+		role, _ := gate.MemberRole(r.Context(), homeID, u.ID)
+		if role != "owner" && role != "admin" {
+			ok, _ := gate.CanManageRoom(r.Context(), homeID, u.ID, dev.RoomID)
+			if !ok {
+				http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 		}
 	}
 	if r.Body == nil {
@@ -233,15 +244,23 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	if gate := h.svc.PermGate(); gate != nil {
+		dev, err := h.svc.Get(r.Context(), id)
+		if err != nil {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
 		homeID, err := h.svc.HomeIDForDevice(r.Context(), id)
 		if err != nil {
 			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 			return
 		}
-		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
-		if err != nil || (role != "owner" && role != "admin") {
-			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
-			return
+		role, _ := gate.MemberRole(r.Context(), homeID, u.ID)
+		if role != "owner" && role != "admin" {
+			ok, _ := gate.CanManageRoom(r.Context(), homeID, u.ID, dev.RoomID)
+			if !ok {
+				http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 		}
 	}
 	if err := h.svc.Delete(r.Context(), id); err != nil {
@@ -406,10 +425,13 @@ func (h *Handler) CreateInRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if gate := h.svc.PermGate(); gate != nil {
-		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
-		if err != nil || (role != "owner" && role != "admin") {
-			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
-			return
+		role, _ := gate.MemberRole(r.Context(), homeID, u.ID)
+		if role != "owner" && role != "admin" {
+			ok, _ := gate.CanManageRoom(r.Context(), homeID, u.ID, roomID)
+			if !ok {
+				http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 		}
 	}
 
@@ -857,16 +879,30 @@ func (h *Handler) CreateAppliance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var (
+		applianceHomeID string
+		callerRole      string
+	)
 	if gate := h.svc.PermGate(); gate != nil && req.DeviceID != "" {
-		homeID, err := h.svc.HomeIDForDevice(r.Context(), req.DeviceID)
+		dev, err := h.svc.Get(r.Context(), req.DeviceID)
 		if err != nil {
 			http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
 			return
 		}
-		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
-		if err != nil || (role != "owner" && role != "admin") {
-			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		hid, err := h.svc.HomeIDForDevice(r.Context(), req.DeviceID)
+		if err != nil {
+			http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
 			return
+		}
+		applianceHomeID = hid
+		role, _ := gate.MemberRole(r.Context(), hid, u.ID)
+		callerRole = role
+		if role != "owner" && role != "admin" {
+			ok, _ := gate.CanManageRoom(r.Context(), hid, u.ID, dev.RoomID)
+			if !ok {
+				http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 		}
 	}
 
@@ -876,6 +912,11 @@ func (h *Handler) CreateAppliance(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
 		return
 	}
+
+	if gate := h.svc.PermGate(); gate != nil && applianceHomeID != "" && callerRole == "member" {
+		_ = gate.InsertApplianceGrant(r.Context(), applianceHomeID, u.ID, app.ID, &u.ID)
+	}
+
 	writeJSON(w, http.StatusCreated, app)
 }
 
@@ -954,8 +995,8 @@ func (h *Handler) DeleteAppliance(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// requireApplianceManager returns nil when the user is owner or admin of the
-// home that owns the appliance. Returns a non-nil error otherwise (forbidden).
+// requireApplianceManager returns nil when the user is owner, admin, or a member
+// with can_manage_devices for the appliance's room. Returns errForbidden otherwise.
 // When the permission gate is not wired, returns nil.
 func (h *Handler) requireApplianceManager(ctx context.Context, applianceID, userID string) error {
 	gate := h.svc.PermGate()
@@ -970,7 +1011,15 @@ func (h *Handler) requireApplianceManager(ctx context.Context, applianceID, user
 	if err != nil {
 		return err
 	}
-	if role != "owner" && role != "admin" {
+	if role == "owner" || role == "admin" {
+		return nil
+	}
+	app, err := h.svc.GetAppliance(ctx, applianceID)
+	if err != nil {
+		return err
+	}
+	ok, _ := gate.CanManageRoom(ctx, homeID, userID, app.RoomID)
+	if !ok {
 		return errForbidden
 	}
 	return nil

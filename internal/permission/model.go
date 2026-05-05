@@ -46,10 +46,11 @@ type PermissionTree struct {
 }
 
 type TreeRoom struct {
-	ID              string       `json:"id"`
-	Name            string       `json:"name"`
-	GrantedDirectly bool         `json:"granted_directly"`
-	Devices         []TreeDevice `json:"devices"`
+	ID               string       `json:"id"`
+	Name             string       `json:"name"`
+	GrantedDirectly  bool         `json:"granted_directly"`
+	CanManageDevices bool         `json:"can_manage_devices"`
+	Devices          []TreeDevice `json:"devices"`
 }
 
 type TreeDevice struct {

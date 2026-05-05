@@ -88,12 +88,24 @@ func (h *Handler) GetPermissions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	managedRoomIDs, err := h.svc.ListManagedRoomIDs(r.Context(), homeID, userID)
+	if err != nil {
+		slog.Error("permissions: list managed rooms", "error", err)
+		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		return
+	}
+	managedSet := make(map[string]struct{}, len(managedRoomIDs))
+	for _, id := range managedRoomIDs {
+		managedSet[id] = struct{}{}
+	}
+
 	out := make([]TreeRoom, 0, len(rooms))
 	for _, rm := range rooms {
 		treeRoom := TreeRoom{
-			ID:              rm.ID,
-			Name:            rm.Name,
-			GrantedDirectly: contains(roomsSet, rm.ID),
+			ID:               rm.ID,
+			Name:             rm.Name,
+			GrantedDirectly:  contains(roomsSet, rm.ID),
+			CanManageDevices: contains(managedSet, rm.ID),
 		}
 
 		devices, err := h.deviceSvc.ListByRoom(r.Context(), rm.ID)
@@ -155,7 +167,8 @@ func (h *Handler) PutPermissions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Grants []ScopeRef `json:"grants"`
+		Grants      []ScopeRef `json:"grants"`
+		ManageRooms []string   `json:"manage_rooms"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
@@ -172,6 +185,25 @@ func (h *Handler) PutPermissions(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, `{"error":"member not found"}`, http.StatusNotFound)
 		default:
 			slog.Error("permissions: set grants", "error", err)
+			http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+		}
+		return
+	}
+
+	manageRooms := req.ManageRooms
+	if manageRooms == nil {
+		manageRooms = []string{}
+	}
+	if err := h.svc.SetRoomCapabilities(r.Context(), caller.ID, homeID, userID, manageRooms); err != nil {
+		switch {
+		case errors.Is(err, ErrForbidden):
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		case errors.Is(err, ErrValidation):
+			writeError(w, http.StatusUnprocessableEntity, err.Error())
+		case errors.Is(err, ErrNotFound):
+			http.Error(w, `{"error":"member not found"}`, http.StatusNotFound)
+		default:
+			slog.Error("permissions: set room capabilities", "error", err)
 			http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
 		}
 		return
