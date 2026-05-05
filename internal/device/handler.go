@@ -36,6 +36,11 @@ func NewHandler(svc *Service, firmwareStore *firmware.Store, versionRepo *firmwa
 }
 
 func (h *Handler) Provision(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	id := r.PathValue("id")
 	if id == "" {
 		http.Error(w, `{"error":"device id is required"}`, http.StatusBadRequest)
@@ -47,6 +52,18 @@ func (h *Handler) Provision(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
 		return
+	}
+	if gate := h.svc.PermGate(); gate != nil {
+		homeID, err := h.svc.HomeIDForDevice(r.Context(), id)
+		if err != nil {
+			http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+			return
+		}
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
 	}
 
 	if h.certsSvc == nil {
@@ -85,6 +102,11 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	if r.Body == nil {
 		http.Error(w, `{"error":"missing request body"}`, http.StatusBadRequest)
 		return
@@ -93,6 +115,18 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
 		return
+	}
+	if gate := h.svc.PermGate(); gate != nil && strings.TrimSpace(req.RoomID) != "" {
+		homeID, err := h.svc.repo.GetHomeIDByRoom(r.Context(), req.RoomID)
+		if err != nil {
+			http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
+			return
+		}
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
 	}
 
 	d, err := h.svc.Create(r.Context(), req)
@@ -105,17 +139,41 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	id := r.PathValue("id")
 	d, err := h.svc.Get(r.Context(), id)
 	if err != nil {
 		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 		return
 	}
+	if gate := h.svc.PermGate(); gate != nil {
+		ok, err := gate.CheckDevice(r.Context(), u.ID, id)
+		if err != nil || !ok {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, d)
 }
 
 func (h *Handler) GetTelemetry(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	id := r.PathValue("id")
+	if gate := h.svc.PermGate(); gate != nil {
+		ok, err := gate.CheckDevice(r.Context(), u.ID, id)
+		if err != nil || !ok {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	points, err := h.svc.GetRecentTelemetry(r.Context(), id, limit)
 	if err != nil {
@@ -130,7 +188,24 @@ func (h *Handler) GetTelemetry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	id := r.PathValue("id")
+	if gate := h.svc.PermGate(); gate != nil {
+		homeID, err := h.svc.HomeIDForDevice(r.Context(), id)
+		if err != nil {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+	}
 	if r.Body == nil {
 		http.Error(w, `{"error":"missing request body"}`, http.StatusBadRequest)
 		return
@@ -151,7 +226,24 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	u := user.FromContext(r.Context())
+	if u == nil {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
 	id := r.PathValue("id")
+	if gate := h.svc.PermGate(); gate != nil {
+		homeID, err := h.svc.HomeIDForDevice(r.Context(), id)
+		if err != nil {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+	}
 	if err := h.svc.Delete(r.Context(), id); err != nil {
 		slog.Error("delete device", "error", err)
 		http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
@@ -238,6 +330,38 @@ func (h *Handler) ListByRoom(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if gate := h.svc.PermGate(); gate != nil {
+		allowed, allAccess, err := gate.ListAccessibleDeviceIDs(r.Context(), homeID, u.ID)
+		if err != nil {
+			slog.Error("list devices by room: permission filter", "error", err)
+			http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+			return
+		}
+		if !allAccess {
+			all, err := h.svc.ListByRoom(r.Context(), roomID)
+			if err != nil {
+				slog.Error("list devices by room", "error", err)
+				http.Error(w, `{"error":"internal"}`, http.StatusInternalServerError)
+				return
+			}
+			set := make(map[string]struct{}, len(allowed))
+			for _, id := range allowed {
+				set[id] = struct{}{}
+			}
+			filtered := all[:0]
+			for _, d := range all {
+				if _, ok := set[d.ID]; ok {
+					filtered = append(filtered, d)
+				}
+			}
+			if filtered == nil {
+				filtered = []Device{}
+			}
+			writeJSON(w, http.StatusOK, &CursorResponse[Device]{Data: filtered})
+			return
+		}
+	}
+
 	cursor := r.URL.Query().Get("cursor")
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 
@@ -281,6 +405,13 @@ func (h *Handler) CreateInRoom(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
 		return
 	}
+	if gate := h.svc.PermGate(); gate != nil {
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+	}
 
 	var req CreateDeviceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -322,6 +453,13 @@ func (h *Handler) OTA(w http.ResponseWriter, r *http.Request) {
 	if !belongs {
 		http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
 		return
+	}
+	if gate := h.svc.PermGate(); gate != nil {
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
 	}
 
 	d, err := h.svc.repo.GetByIDInRoom(r.Context(), deviceID, roomID)
@@ -419,6 +557,13 @@ func (h *Handler) ListOTAAttempts(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
 		return
 	}
+	if gate := h.svc.PermGate(); gate != nil {
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+	}
 
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	attempts, err := h.svc.ListOTAAttemptsByRoom(r.Context(), roomID, limit)
@@ -458,6 +603,13 @@ func (h *Handler) RetryOTA(w http.ResponseWriter, r *http.Request) {
 	if !belongs {
 		http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
 		return
+	}
+	if gate := h.svc.PermGate(); gate != nil {
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
 	}
 
 	prev, err := h.svc.GetOTAAttemptByID(r.Context(), attemptID)
@@ -541,6 +693,13 @@ func (h *Handler) CancelOTA(w http.ResponseWriter, r *http.Request) {
 	if !belongs {
 		http.Error(w, `{"error":"room not found"}`, http.StatusNotFound)
 		return
+	}
+	if gate := h.svc.PermGate(); gate != nil {
+		role, err := gate.MemberRole(r.Context(), homeID, u.ID)
+		if err != nil || (role != "owner" && role != "admin") {
+			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+			return
+		}
 	}
 
 	attempt, err := h.svc.GetOTAAttemptByID(r.Context(), attemptID)

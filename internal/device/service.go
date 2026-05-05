@@ -77,7 +77,9 @@ type PermissionGate interface {
 	CheckAppliance(ctx context.Context, userID, applianceID string) (bool, error)
 	CheckApplianceByChannel(ctx context.Context, userID, deviceID string, channel int) (applianceID string, allowed bool, err error)
 	ListAccessibleApplianceIDs(ctx context.Context, homeID, userID string) (ids []string, allAccess bool, err error)
+	ListAccessibleDeviceIDs(ctx context.Context, homeID, userID string) (ids []string, allAccess bool, err error)
 	MemberRole(ctx context.Context, homeID, userID string) (string, error)
+	CheckDevice(ctx context.Context, userID, deviceID string) (bool, error)
 }
 
 type Service struct {

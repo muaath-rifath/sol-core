@@ -134,6 +134,91 @@ func (s *Service) DirectGrantsFor(ctx context.Context, homeID, userID string) (r
 	return rooms, devices, appliances, nil
 }
 
+// ListAccessibleRoomIDs returns the set of room IDs a user may see in a home.
+// Owner/admin → (nil, true, nil) signaling "no filter". Members get the filtered list.
+func (s *Service) ListAccessibleRoomIDs(ctx context.Context, homeID, userID string) (ids []string, allAccess bool, err error) {
+	role, err := s.repo.GetMemberRole(ctx, homeID, userID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return []string{}, false, nil
+		}
+		return nil, false, err
+	}
+	if role == "owner" || role == "admin" {
+		return nil, true, nil
+	}
+	ids, err = s.repo.ListAccessibleRoomIDs(ctx, homeID, userID)
+	if err != nil {
+		return nil, false, err
+	}
+	if ids == nil {
+		ids = []string{}
+	}
+	return ids, false, nil
+}
+
+// ListAccessibleDeviceIDs returns the set of device IDs a user may see in a home.
+// Owner/admin → (nil, true, nil). Members get the filtered list.
+func (s *Service) ListAccessibleDeviceIDs(ctx context.Context, homeID, userID string) (ids []string, allAccess bool, err error) {
+	role, err := s.repo.GetMemberRole(ctx, homeID, userID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return []string{}, false, nil
+		}
+		return nil, false, err
+	}
+	if role == "owner" || role == "admin" {
+		return nil, true, nil
+	}
+	ids, err = s.repo.ListAccessibleDeviceIDs(ctx, homeID, userID)
+	if err != nil {
+		return nil, false, err
+	}
+	if ids == nil {
+		ids = []string{}
+	}
+	return ids, false, nil
+}
+
+// CheckRoomAccess returns true if userID may see the given room.
+// homeID is passed directly (already known from the URL param).
+func (s *Service) CheckRoomAccess(ctx context.Context, userID, homeID, roomID string) (bool, error) {
+	role, err := s.repo.GetMemberRole(ctx, homeID, userID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if role == "owner" || role == "admin" {
+		return true, nil
+	}
+	return s.repo.CheckRoomAccess(ctx, homeID, userID, roomID)
+}
+
+// CheckDevice returns true if userID may see/control deviceID.
+// Resolves homeID and roomID internally (single query), then checks effective grants.
+func (s *Service) CheckDevice(ctx context.Context, userID, deviceID string) (bool, error) {
+	homeID, roomID, err := s.repo.GetDeviceContext(ctx, deviceID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return false, ErrNotFound
+		}
+		return false, err
+	}
+	role, err := s.repo.GetMemberRole(ctx, homeID, userID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if role == "owner" || role == "admin" {
+		return true, nil
+	}
+	return s.repo.HasEffectiveDeviceGrant(ctx, homeID, userID, roomID, deviceID)
+}
+
 // SetGrants replaces the grant set for (targetUserID) in homeID.
 // Caller must be owner or admin of homeID. Target must be a 'member' (not owner/admin).
 // Refs that don't belong to homeID are rejected as ErrValidation.

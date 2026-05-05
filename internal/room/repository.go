@@ -102,6 +102,35 @@ func (r *Repository) ListByHomePaginated(ctx context.Context, homeID string, cur
 	return rooms, nil
 }
 
+func (r *Repository) ListByHomePaginatedFiltered(ctx context.Context, homeID string, ids []string, cursorTime *time.Time, cursorID string, limit int) ([]Room, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, home_id, name, floor, metadata, created_at, updated_at
+		 FROM rooms
+		 WHERE home_id = $1
+		   AND id = ANY($2)
+		   AND ($3::timestamptz IS NULL
+		        OR created_at > $3
+		        OR (created_at = $3 AND id::text > $4))
+		 ORDER BY created_at ASC, id::text ASC
+		 LIMIT $5`,
+		homeID, ids, cursorTime, cursorID, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list rooms filtered: %w", err)
+	}
+	defer rows.Close()
+
+	var rooms []Room
+	for rows.Next() {
+		var room Room
+		if err := rows.Scan(&room.ID, &room.HomeID, &room.Name, &room.Floor, &room.Metadata, &room.CreatedAt, &room.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan room: %w", err)
+		}
+		rooms = append(rooms, room)
+	}
+	return rooms, nil
+}
+
 func (r *Repository) Update(ctx context.Context, id, homeID string, req UpdateRoomRequest) (*Room, error) {
 	room, err := r.GetByID(ctx, id, homeID)
 	if err != nil {

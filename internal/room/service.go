@@ -11,6 +11,15 @@ import (
 
 var ErrValidation = errors.New("validation error")
 
+// PermissionGate is the subset of permission.Service used by the room package.
+// Defined here (duck-typed, satisfied by *permission.Service) to keep the
+// dependency graph one-directional — permission already imports room indirectly.
+type PermissionGate interface {
+	MemberRole(ctx context.Context, homeID, userID string) (string, error)
+	ListAccessibleRoomIDs(ctx context.Context, homeID, userID string) (ids []string, allAccess bool, err error)
+	CheckRoomAccess(ctx context.Context, userID, homeID, roomID string) (bool, error)
+}
+
 const defaultLimit = 20
 const maxLimit = 100
 
@@ -63,12 +72,16 @@ func buildCursorResponse[T any](items []T, limit int, cursorFn func(T) (time.Tim
 }
 
 type Service struct {
-	repo *Repository
+	repo     *Repository
+	permGate PermissionGate
 }
 
 func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
 }
+
+func (s *Service) SetPermissionGate(g PermissionGate) { s.permGate = g }
+func (s *Service) PermGate() PermissionGate            { return s.permGate }
 
 func (s *Service) Create(ctx context.Context, homeID string, req CreateRoomRequest) (*Room, error) {
 	return s.repo.Create(ctx, homeID, req)
@@ -83,6 +96,23 @@ func (s *Service) Get(ctx context.Context, id, homeID string) (*Room, error) {
 // bounded.
 func (s *Service) ListAllByHome(ctx context.Context, homeID string) ([]Room, error) {
 	return s.repo.ListByHome(ctx, homeID)
+}
+
+// ListFiltered is like List but restricts results to rooms whose IDs are in ids.
+// Called for member-role users who only see their accessible rooms.
+func (s *Service) ListFiltered(ctx context.Context, homeID string, ids []string, cursor string, limit int) (*CursorResponse[Room], error) {
+	limit = normalizeLimit(limit)
+	cursorTime, cursorID, err := decodeCursor(cursor)
+	if err != nil {
+		return nil, err
+	}
+	rooms, err := s.repo.ListByHomePaginatedFiltered(ctx, homeID, ids, cursorTime, cursorID, limit+1)
+	if err != nil {
+		return nil, err
+	}
+	return buildCursorResponse(rooms, limit, func(r Room) (time.Time, string) {
+		return r.CreatedAt, r.ID
+	}), nil
 }
 
 func (s *Service) List(ctx context.Context, homeID, cursor string, limit int) (*CursorResponse[Room], error) {
