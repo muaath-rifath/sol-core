@@ -95,8 +95,22 @@ func main() {
 	hub := ws.NewHub(rdb)
 	go hub.Run(ctx)
 
+	// Certs Service — required: issues device certs and the backend's own MQTT client cert
+	certsSvc, err := certs.NewService(cfg.CACertPath, cfg.CAKeyPath)
+	if err != nil {
+		slog.Error("certs service unavailable — CA cert/key required for mTLS", "error", err)
+		os.Exit(1)
+	}
+
+	// Generate an in-memory client cert for the backend's MQTT connection
+	backendBundle, err := certsSvc.GenerateDeviceCertificate(cfg.MQTTClientID)
+	if err != nil {
+		slog.Error("failed to generate backend MQTT client certificate", "error", err)
+		os.Exit(1)
+	}
+
 	// MQTT
-	mqttClient, err := mqtt.NewClient(cfg.MQTTBrokerURL, cfg.MQTTClientID, cfg.MQTTUsername, cfg.MQTTPassword, cfg.CACertPath, cfg.ClientCertPath, cfg.ClientKeyPath)
+	mqttClient, err := mqtt.NewClient(cfg.MQTTBrokerURL, cfg.MQTTClientID, cfg.CACertPath, backendBundle.CertificatePEM, backendBundle.PrivateKeyPEM)
 	if err != nil {
 		slog.Error("failed to connect to mqtt broker", "error", err)
 		os.Exit(1)
@@ -123,12 +137,6 @@ func main() {
 		time.Duration(cfg.OTAAttemptTimeoutSec)*time.Second,
 	)
 	go deviceSvc.RunOTAAttemptWatchdog(ctx)
-
-	// Certs Service
-	certsSvc, err := certs.NewService(cfg.CACertPath, cfg.CAKeyPath)
-	if err != nil {
-		slog.Warn("certs service disabled (mTLS will not be available)", "error", err)
-	}
 
 	firmwareStore := firmware.NewStore(minioClient, cfg.MinioBucket)
 	firmwareVersionRepo := firmware.NewVersionRepository(pgPool)
