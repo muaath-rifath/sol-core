@@ -288,3 +288,25 @@ func (h *Handler) DownloadByVersionID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s-app.bin", v.TemplateID, v.Version))
 	io.Copy(w, reader)
 }
+
+func (h *Handler) DownloadPartitionTable(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	v, err := h.versions.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+
+	reader, err := h.store.Download(r.Context(), v.PartitionKey)
+	if err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+	defer reader.Close()
+
+	http.NewResponseController(w).SetWriteDeadline(time.Time{})
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s-partition-table.bin", v.TemplateID, v.Version))
+	io.Copy(w, reader)
+}

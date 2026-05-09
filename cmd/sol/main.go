@@ -269,6 +269,7 @@ func main() {
 	mux.Handle("GET /api/v1/firmware/targets", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.ListTargets)))
 	mux.Handle("GET /api/v1/firmware/versions/{id}/download", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadByVersionID)))
 	mux.Handle("GET /api/v1/firmware/versions/{id}/presigned-url", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.PresignedURL)))
+	mux.Handle("GET /api/v1/firmware/versions/{id}/partition-table", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadPartitionTable)))
 
 	// Public OTA firmware download (no auth)
 	mux.HandleFunc("GET /api/v1/ota/firmware/{id}", firmwareHandler.DownloadByVersionID)
