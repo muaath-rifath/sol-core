@@ -425,10 +425,7 @@ void app_main(void) {
 
   esp_mqtt_client_config_t mqtt_cfg = {
       .broker.address.uri = mqtt_broker_uri,
-      .broker.verification.crt_bundle_attach = esp_crt_bundle_attach,
       .broker.verification.skip_cert_common_name_check = false,
-
-
       .session.protocol_ver = MQTT_PROTOCOL_V_5,
       .session.keepalive = 30,
       .credentials.client_id = s_device_id,
@@ -442,10 +439,14 @@ void app_main(void) {
 
   if (use_mtls) {
     ESP_LOGI(TAG, "Using mTLS certificates from flash");
+    // Use the CA cert from the certs partition to verify the broker — the broker
+    // uses a self-signed cert from our private CA, not a public CA.
+    mqtt_cfg.broker.verification.certificate = s_certs.ca_cert;
     mqtt_cfg.credentials.authentication.certificate = s_certs.client_cert;
     mqtt_cfg.credentials.authentication.key = s_certs.client_key;
   } else {
-    ESP_LOGI(TAG, "Using MQTT password authentication");
+    ESP_LOGW(TAG, "Using MQTT password authentication (no cert partition found)");
+    mqtt_cfg.broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
     mqtt_cfg.credentials.username = runtime_get_mqtt_username();
     mqtt_cfg.credentials.authentication.password = runtime_get_mqtt_password();
   }
