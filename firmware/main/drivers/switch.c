@@ -7,6 +7,17 @@
 
 static const char *TAG = "driver_switch";
 
+// I2S audio pins — speaker (MAX98357A): 4=BCLK, 5=LRC, 6=DOUT; mic (INMP441): 15=WS, 16=SCK, 17=SD.
+// Driving these as GPIO outputs would damage connected audio hardware.
+static const int s_reserved_pins[] = {4, 5, 6, 15, 16, 17};
+
+static bool relay_pin_is_reserved(int pin) {
+    for (size_t i = 0; i < sizeof(s_reserved_pins) / sizeof(s_reserved_pins[0]); i++) {
+        if (pin == s_reserved_pins[i]) return true;
+    }
+    return false;
+}
+
 static int s_relay_pins[RUNTIME_RELAY_CHANNELS_MAX] = {-1, -1, -1, -1};
 static bool s_relay_logical_states[RUNTIME_RELAY_CHANNELS_MAX] = {false, false, false, false};
 
@@ -34,7 +45,13 @@ static void switch_init(void) {
         if (s_relay_pins[i] < 0) {
             continue;
         }
-        
+
+        if (relay_pin_is_reserved(s_relay_pins[i])) {
+            ESP_LOGE(TAG, "SAFETY: channel %d GPIO%d is an I2S audio pin — disabling to protect hardware!", i, s_relay_pins[i]);
+            s_relay_pins[i] = -1;
+            continue;
+        }
+
         gpio_reset_pin((gpio_num_t)s_relay_pins[i]);
         gpio_set_direction((gpio_num_t)s_relay_pins[i], GPIO_MODE_OUTPUT);
         

@@ -18,25 +18,22 @@ type Client struct {
 	messageHandler MessageHandler
 }
 
-func NewClient(brokerURL, clientID, username, password string, caCertPath, clientCertPath, clientKeyPath string) (*Client, error) {
+func NewClient(brokerURL, clientID, caCertPath, clientCertPEM, clientKeyPEM string) (*Client, error) {
+	if caCertPath == "" || clientCertPEM == "" || clientKeyPEM == "" {
+		return nil, fmt.Errorf("mTLS is required: caCertPath, clientCertPEM, and clientKeyPEM must all be provided")
+	}
+
+	tlsConfig, err := createTLSConfig(caCertPath, clientCertPEM, clientKeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("create tls config: %w", err)
+	}
+
 	opts := pahomqtt.NewClientOptions().
 		AddBroker(brokerURL).
 		SetClientID(clientID).
 		SetAutoReconnect(true).
-		SetCleanSession(false)
-
-	if username != "" {
-		opts.SetUsername(username).SetPassword(password)
-	}
-
-	// mTLS Configuration
-	if caCertPath != "" && clientCertPath != "" && clientKeyPath != "" {
-		tlsConfig, err := createTLSConfig(caCertPath, clientCertPath, clientKeyPath)
-		if err != nil {
-			return nil, fmt.Errorf("create tls config: %w", err)
-		}
-		opts.SetTLSConfig(tlsConfig)
-	}
+		SetCleanSession(false).
+		SetTLSConfig(tlsConfig)
 
 	c := &Client{}
 
@@ -94,14 +91,12 @@ func (c *Client) Disconnect() {
 	c.client.Disconnect(1000)
 }
 
-func createTLSConfig(caCertPath, clientCertPath, clientKeyPath string) (*tls.Config, error) {
-	// Import trusted CA cert
+func createTLSConfig(caCertPath, clientCertPEM, clientKeyPEM string) (*tls.Config, error) {
 	caCert, err := os.ReadFile(caCertPath)
 	if err != nil {
 		return nil, fmt.Errorf("read ca cert: %w", err)
 	}
 
-	// Load system root CAs
 	caCertPool, err := x509.SystemCertPool()
 	if err != nil {
 		slog.Warn("failed to load system cert pool, falling back to empty pool", "error", err)
@@ -109,21 +104,16 @@ func createTLSConfig(caCertPath, clientCertPath, clientKeyPath string) (*tls.Con
 	}
 	caCertPool.AppendCertsFromPEM(caCert)
 
-	tlsConfig := &tls.Config{
+	cert, err := tls.X509KeyPair([]byte(clientCertPEM), []byte(clientKeyPEM))
+	if err != nil {
+		return nil, fmt.Errorf("parse backend client key pair: %w", err)
+	}
+
+	return &tls.Config{
 		RootCAs:            caCertPool,
+		Certificates:       []tls.Certificate{cert},
 		InsecureSkipVerify: false,
 		MinVersion:         tls.VersionTLS12,
 		ServerName:         "mqtt.sol.muaathrifath.me",
-	}
-
-	// Import client cert/key if provided
-	if clientCertPath != "" && clientKeyPath != "" {
-		cert, err := tls.LoadX509KeyPair(clientCertPath, clientKeyPath)
-		if err != nil {
-			return nil, fmt.Errorf("load client key pair: %w", err)
-		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
-	}
-
-	return tlsConfig, nil
+	}, nil
 }
