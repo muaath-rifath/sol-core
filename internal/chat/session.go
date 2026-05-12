@@ -14,9 +14,10 @@ import (
 
 // SessionConfig holds the Azure OpenAI Realtime API connection parameters.
 type SessionConfig struct {
-	AzureEndpoint string // e.g. "https://myresource.openai.azure.com"
+	AzureEndpoint string
 	AzureKey      string
-	Deployment    string // e.g. "gpt-4o-realtime-preview"
+	Deployment    string
+	APIVersion    string
 }
 
 // Session bridges a frontend WebSocket connection to the Azure OpenAI Realtime API.
@@ -37,7 +38,7 @@ func NewSession(frontend *websocket.Conn, u *user.User, homeID string, tools *To
 func (s *Session) Run(ctx context.Context) error {
 	// Build Azure Realtime WS URL.
 	base := strings.TrimPrefix(strings.TrimPrefix(s.cfg.AzureEndpoint, "https://"), "http://")
-	azureURL := fmt.Sprintf("wss://%s/openai/realtime?api-version=2024-10-01-preview&deployment=%s", base, s.cfg.Deployment)
+	azureURL := fmt.Sprintf("wss://%s/openai/realtime?api-version=%s&deployment=%s", base, s.cfg.APIVersion, s.cfg.Deployment)
 
 	upstream, _, err := websocket.Dial(ctx, azureURL, &websocket.DialOptions{
 		HTTPHeader: http.Header{"api-key": []string{s.cfg.AzureKey}},

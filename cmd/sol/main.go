@@ -159,12 +159,13 @@ func main() {
 	roomSvc.SetPermissionGate(permSvc)
 
 	// Chat
-	cohereClient := chat.NewCohereClient(cfg.CohereAzureEndpoint, cfg.CohereAzureKey)
+	cohereClient := chat.NewCohereClient(cfg.CohereAzureEndpoint, cfg.CohereAzureKey, cfg.CohereAzureDeployment, cfg.CohereAPIVersion)
 	chatTools := chat.NewTools(permSvc, deviceSvc, cohereClient, pgPool)
 	chatHandler := chat.NewHandler(chatTools, chat.SessionConfig{
 		AzureEndpoint: cfg.AzureOpenAIEndpoint,
 		AzureKey:      cfg.AzureOpenAIKey,
 		Deployment:    cfg.AzureDeployment,
+		APIVersion:    cfg.AzureAPIVersion,
 	})
 	deviceSvc.SetEmbedder(cohereClient)
 

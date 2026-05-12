@@ -9,18 +9,22 @@ import (
 	"net/http"
 )
 
-// CohereClient calls the Cohere embed-v4-0 model via Azure AI Services.
+// CohereClient calls the Cohere embed model via Azure AI Services.
 type CohereClient struct {
-	endpoint string
-	apiKey   string
-	http     *http.Client
+	endpoint   string
+	apiKey     string
+	deployment string
+	apiVersion string
+	http       *http.Client
 }
 
-func NewCohereClient(endpoint, apiKey string) *CohereClient {
+func NewCohereClient(endpoint, apiKey, deployment, apiVersion string) *CohereClient {
 	return &CohereClient{
-		endpoint: endpoint,
-		apiKey:   apiKey,
-		http:     &http.Client{},
+		endpoint:   endpoint,
+		apiKey:     apiKey,
+		deployment: deployment,
+		apiVersion: apiVersion,
+		http:       &http.Client{},
 	}
 }
 
@@ -28,13 +32,13 @@ func NewCohereClient(endpoint, apiKey string) *CohereClient {
 // inputType: "search_document" when indexing, "search_query" when querying.
 func (c *CohereClient) Embed(ctx context.Context, text, inputType string) ([]float32, error) {
 	body, _ := json.Marshal(map[string]any{
-		"model":            "embed-v4-0",
-		"input":            []string{text},
-		"input_type":       inputType,
-		"embedding_types":  []string{"float"},
+		"model":           c.deployment,
+		"input":           []string{text},
+		"input_type":      inputType,
+		"embedding_types": []string{"float"},
 	})
 
-	url := c.endpoint + "/models/embed?api-version=2024-05-01-preview"
+	url := fmt.Sprintf("%s/models/embed?api-version=%s", c.endpoint, c.apiVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("chat/cohere: build request: %w", err)
