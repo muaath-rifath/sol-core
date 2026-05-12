@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/muaathrifath/sol-core/internal/ai"
+	"github.com/muaathrifath/sol-core/internal/chat"
 	"github.com/muaathrifath/sol-core/internal/auth"
 	"github.com/muaathrifath/sol-core/internal/automation"
 	"github.com/muaathrifath/sol-core/internal/certs"
@@ -157,6 +158,16 @@ func main() {
 	deviceSvc.SetPermissionGate(permSvc)
 	roomSvc.SetPermissionGate(permSvc)
 
+	// Chat
+	cohereClient := chat.NewCohereClient(cfg.CohereAzureEndpoint, cfg.CohereAzureKey)
+	chatTools := chat.NewTools(permSvc, deviceSvc, cohereClient, pgPool)
+	chatHandler := chat.NewHandler(chatTools, chat.SessionConfig{
+		AzureEndpoint: cfg.AzureOpenAIEndpoint,
+		AzureKey:      cfg.AzureOpenAIKey,
+		Deployment:    cfg.AzureDeployment,
+	})
+	deviceSvc.SetEmbedder(cohereClient)
+
 	// MCP Server
 	mcpServer := mcp.NewServer(deviceSvc, roomSvc)
 
@@ -284,6 +295,9 @@ func main() {
 
 	// WebSocket
 	mux.Handle("/ws", authMiddleware.Wrap(http.HandlerFunc(hub.HandleWebSocket)))
+
+	// Chat WebSocket
+	mux.Handle("GET /api/v1/homes/{homeId}/chat/ws", authMiddleware.Wrap(http.HandlerFunc(chatHandler.ServeWS)))
 
 	mux.Handle("GET /api/v1/mcp/sse", mcpServer.Handler())
 	mux.Handle("POST /api/v1/mcp/sse", mcpServer.Handler())

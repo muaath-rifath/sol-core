@@ -1,0 +1,2 @@
+CREATE EXTENSION IF NOT EXISTS vector;
+ALTER TABLE appliances ADD COLUMN IF NOT EXISTS embedding vector(1024);
