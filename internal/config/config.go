@@ -32,6 +32,15 @@ type Config struct {
 	// AI Service
 	AIServiceURL string
 
+	// Azure OpenAI Realtime (gpt-realtime-1.5) — used by the chat package
+	AzureOpenAIEndpoint string
+	AzureOpenAIKey      string
+	AzureDeployment     string
+
+	// Cohere embed-v4-0 via Azure AI Services — used for appliance embeddings
+	CohereAzureEndpoint string
+	CohereAzureKey      string
+
 	// Brevo transactional email (optional — email disabled if BrevoAPIKey is empty)
 	BrevoAPIKey      string
 	BrevoSenderEmail string
@@ -64,6 +73,11 @@ func Load() (*Config, error) {
 		MinioUseSSL:           os.Getenv("MINIO_USE_SSL") == "true",
 		MinioBucket:           envOrDefault("MINIO_BUCKET", "firmware"),
 		AIServiceURL:          envOrDefault("AI_SERVICE_URL", "http://localhost:8000"),
+		AzureOpenAIEndpoint:   os.Getenv("AZURE_OPENAI_ENDPOINT"),
+		AzureOpenAIKey:        os.Getenv("AZURE_OPENAI_KEY"),
+		AzureDeployment:       envOrDefault("AZURE_DEPLOYMENT", "gpt-4o-realtime-preview"),
+		CohereAzureEndpoint:   envOrDefault("COHERE_AZURE_ENDPOINT", "https://muaat-mmxdtncp-eastus2.services.ai.azure.com"),
+		CohereAzureKey:        os.Getenv("COHERE_AZURE_KEY"),
 		BrevoAPIKey:           os.Getenv("BREVO_API_KEY"),
 		BrevoSenderEmail:      envOrDefault("BREVO_SENDER_EMAIL", "noreply@sol.app"),
 		BrevoSenderName:       envOrDefault("BREVO_SENDER_NAME", "Sol"),

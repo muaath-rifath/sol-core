@@ -69,6 +69,12 @@ func buildCursorResponse[T any](items []T, limit int, cursorFn func(T) (time.Tim
 	return resp
 }
 
+// ApplianceEmbedder generates a vector embedding for an appliance name/description.
+// Satisfied by *chat.CohereClient — defined here as an interface to avoid a circular import.
+type ApplianceEmbedder interface {
+	Embed(ctx context.Context, text, inputType string) ([]float32, error)
+}
+
 // PermissionGate describes the subset of the permission service that the
 // device package needs. Defined here (and satisfied by *permission.Service)
 // to avoid an import of the permission package, keeping the dependency graph
@@ -91,6 +97,7 @@ type Service struct {
 	mqtt              *mqtt.Client
 	hub               *ws.Hub
 	permGate          PermissionGate
+	embedder          ApplianceEmbedder
 	onlineFreshness   time.Duration
 	otaAttemptTimeout time.Duration
 }
@@ -129,6 +136,38 @@ func (s *Service) HomeIDForAppliance(ctx context.Context, applianceID string) (s
 // keeps NewService's signature stable.
 func (s *Service) SetPermissionGate(g PermissionGate) {
 	s.permGate = g
+}
+
+// SetEmbedder wires in the embedding client for appliance vector generation.
+func (s *Service) SetEmbedder(e ApplianceEmbedder) {
+	s.embedder = e
+}
+
+// asyncEmbed generates and stores an embedding for an appliance in the background.
+// Errors are logged and do not affect the caller.
+func (s *Service) asyncEmbed(applianceID, name string) {
+	if s.embedder == nil {
+		return
+	}
+	go func() {
+		ctx := context.Background()
+		vec, err := s.embedder.Embed(ctx, name, "search_document")
+		if err != nil {
+			slog.Warn("embed appliance: generate", "id", applianceID, "error", err)
+			return
+		}
+		parts := make([]string, len(vec))
+		for i, f := range vec {
+			parts[i] = fmt.Sprintf("%g", f)
+		}
+		vecStr := "[" + strings.Join(parts, ",") + "]"
+		if _, err := s.repo.pool.Exec(ctx,
+			`UPDATE appliances SET embedding = $1::vector WHERE id = $2`,
+			vecStr, applianceID,
+		); err != nil {
+			slog.Warn("embed appliance: store", "id", applianceID, "error", err)
+		}
+	}()
 }
 
 // PermGate returns the wired-in permission gate, or nil if not wired.
@@ -878,6 +917,7 @@ func (s *Service) CreateAppliance(ctx context.Context, req CreateApplianceReques
 	if err := s.repo.CreateAppliance(ctx, a); err != nil {
 		return nil, fmt.Errorf("create appliance: %w", err)
 	}
+	s.asyncEmbed(a.ID, a.Name)
 	return a, nil
 }
 
@@ -920,6 +960,7 @@ func (s *Service) UpdateAppliance(ctx context.Context, id string, req UpdateAppl
 	if err := s.repo.UpdateAppliance(ctx, a); err != nil {
 		return nil, fmt.Errorf("update appliance: %w", err)
 	}
+	s.asyncEmbed(a.ID, a.Name)
 	return a, nil
 }
 
