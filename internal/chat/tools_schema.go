@@ -21,8 +21,38 @@ func toolSchemas() []map[string]any {
 		},
 		{
 			"type":        "function",
+			"name":        "check_device_online",
+			"description": "Check whether the physical device backing this appliance is reachable. Always call this before control_device.",
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"appliance_id": map[string]any{
+						"type":        "string",
+						"description": "The UUID of the appliance to check (from discover_devices).",
+					},
+				},
+				"required": []string{"appliance_id"},
+			},
+		},
+		{
+			"type":        "function",
+			"name":        "get_device_state",
+			"description": "Return the appliance's current state, e.g. {isOn: true}.",
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"appliance_id": map[string]any{
+						"type":        "string",
+						"description": "The UUID of the appliance to inspect (from discover_devices).",
+					},
+				},
+				"required": []string{"appliance_id"},
+			},
+		},
+		{
+			"type":        "function",
 			"name":        "control_device",
-			"description": "Turn an appliance on or off. Only works for appliances the user has permission to control.",
+			"description": "Turn an appliance on or off and wait for the firmware acknowledgement. Returns {ok, message}. When ok is false, the command did NOT take effect - report the message faithfully and do not claim success.",
 			"parameters": map[string]any{
 				"type": "object",
 				"properties": map[string]any{

@@ -100,6 +100,7 @@ type Service struct {
 	embedder          ApplianceEmbedder
 	onlineFreshness   time.Duration
 	otaAttemptTimeout time.Duration
+	ackRegistry       *commandAckRegistry
 }
 
 func NewService(repo *Repository, otaRepo *OTAAttemptRepository, roomSvc *room.Service, mqttClient *mqtt.Client, hub *ws.Hub, onlineFreshness time.Duration, otaAttemptTimeout time.Duration) *Service {
@@ -117,6 +118,7 @@ func NewService(repo *Repository, otaRepo *OTAAttemptRepository, roomSvc *room.S
 		hub:               hub,
 		onlineFreshness:   onlineFreshness,
 		otaAttemptTimeout: otaAttemptTimeout,
+		ackRegistry:       newCommandAckRegistry(),
 	}
 }
 
@@ -278,6 +280,37 @@ func (s *Service) SendCommand(ctx context.Context, cmd Command) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Service) SendCommandAwait(ctx context.Context, cmd Command, timeout time.Duration) (AckResult, error) {
+	if cmd.RequestID == "" {
+		cmd.RequestID = uuid.NewString()
+	}
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+
+	waiter, release, err := s.ackRegistry.Register(cmd.RequestID)
+	if err != nil {
+		return AckResult{OK: false, Message: err.Error(), RequestID: cmd.RequestID}, err
+	}
+	defer release()
+
+	if err := s.SendCommand(ctx, cmd); err != nil {
+		return AckResult{OK: false, Message: "publish failed: " + err.Error(), RequestID: cmd.RequestID}, err
+	}
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case res := <-waiter:
+		return res, nil
+	case <-ctx.Done():
+		return AckResult{OK: false, Message: ctx.Err().Error(), RequestID: cmd.RequestID}, ctx.Err()
+	case <-timer.C:
+		return AckResult{OK: false, Message: "device did not respond", RequestID: cmd.RequestID}, nil
+	}
 }
 
 // SendCommandForUser validates ownership and per-appliance permission, then
@@ -578,6 +611,9 @@ func (s *Service) HandleCommandAck(_ context.Context, deviceID string, ack map[s
 
 	message, _ := ack["message"].(string)
 	ok, _ := ack["ok"].(bool)
+	if s.ackRegistry != nil && s.ackRegistry.TryDeliver(requestID, AckResult{OK: ok, Message: message, RequestID: requestID}) {
+		return nil
+	}
 
 	if message != "" {
 		_ = s.otaRepo.AppendLog(context.Background(), requestID, "ACK: "+message)
