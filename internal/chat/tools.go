@@ -38,6 +38,7 @@ type ApplianceSummary struct {
 	ID    string         `json:"id"`
 	Name  string         `json:"name"`
 	Type  string         `json:"type"`
+	Room  string         `json:"room,omitempty"`
 	State map[string]any `json:"state"`
 }
 
@@ -87,11 +88,12 @@ func (t *Tools) discoverDevices(ctx context.Context, u *user.User, homeID, query
 		return []ApplianceSummary{}, nil
 	}
 
-	// Try vector search; fall back to full-text search when the embedder is unavailable.
+	// Try vector search; fall back to listing all appliances when the embedder is unavailable.
+	// The model receives the full list with room names and picks the right one itself.
 	vec, embedErr := t.embedder.Embed(ctx, query, "search_query")
 	if embedErr != nil {
-		slog.Warn("chat: embedder unavailable, falling back to text search", "error", embedErr)
-		return t.textSearchAppliances(ctx, homeID, ids, allAccess, query)
+		slog.Warn("chat: embedder unavailable, listing all appliances", "error", embedErr)
+		return t.listAllAppliances(ctx, homeID, ids, allAccess)
 	}
 
 	return t.vectorSearchAppliances(ctx, homeID, ids, allAccess, formatVector(vec))
@@ -102,9 +104,9 @@ func (t *Tools) vectorSearchAppliances(ctx context.Context, homeID string, ids [
 
 	if allAccess {
 		result, err := t.pool.Query(ctx,
-			`SELECT a.id, a.name, a.type, a.state
+			`SELECT a.id, a.name, a.type, COALESCE(r.name, ''), a.state
 			 FROM appliances a
-			 JOIN rooms r ON r.id = a.room_id
+			 LEFT JOIN rooms r ON r.id = a.room_id
 			 WHERE r.home_id = $1
 			 ORDER BY a.embedding <=> $2::vector
 			 LIMIT 10`,
@@ -116,17 +118,18 @@ func (t *Tools) vectorSearchAppliances(ctx context.Context, homeID string, ids [
 		defer result.Close()
 		for result.Next() {
 			var s ApplianceSummary
-			if err := result.Scan(&s.ID, &s.Name, &s.Type, &s.State); err != nil {
+			if err := result.Scan(&s.ID, &s.Name, &s.Type, &s.Room, &s.State); err != nil {
 				continue
 			}
 			rows = append(rows, s)
 		}
 	} else {
 		result, err := t.pool.Query(ctx,
-			`SELECT id, name, type, state
-			 FROM appliances
-			 WHERE id = ANY($1)
-			 ORDER BY embedding <=> $2::vector
+			`SELECT a.id, a.name, a.type, COALESCE(r.name, ''), a.state
+			 FROM appliances a
+			 LEFT JOIN rooms r ON r.id = a.room_id
+			 WHERE a.id = ANY($1)
+			 ORDER BY a.embedding <=> $2::vector
 			 LIMIT 10`,
 			ids, vecStr,
 		)
@@ -136,7 +139,7 @@ func (t *Tools) vectorSearchAppliances(ctx context.Context, homeID string, ids [
 		defer result.Close()
 		for result.Next() {
 			var s ApplianceSummary
-			if err := result.Scan(&s.ID, &s.Name, &s.Type, &s.State); err != nil {
+			if err := result.Scan(&s.ID, &s.Name, &s.Type, &s.Room, &s.State); err != nil {
 				continue
 			}
 			rows = append(rows, s)
@@ -149,49 +152,48 @@ func (t *Tools) vectorSearchAppliances(ctx context.Context, homeID string, ids [
 	return rows, nil
 }
 
-// textSearchAppliances is the fallback used when the embedder is unavailable.
-// It uses PostgreSQL full-text search so multi-word queries like
-// "bedroom main light" still match an appliance named "Main Light".
-func (t *Tools) textSearchAppliances(ctx context.Context, homeID string, ids []string, allAccess bool, query string) ([]ApplianceSummary, error) {
+// listAllAppliances is the fallback used when the embedder is unavailable.
+// Returns every accessible appliance with its room name so the model can
+// match the user's description itself instead of relying on search.
+func (t *Tools) listAllAppliances(ctx context.Context, homeID string, ids []string, allAccess bool) ([]ApplianceSummary, error) {
 	var rows []ApplianceSummary
 
 	if allAccess {
 		result, err := t.pool.Query(ctx,
-			`SELECT a.id, a.name, a.type, a.state
+			`SELECT a.id, a.name, a.type, COALESCE(r.name, ''), a.state
 			 FROM appliances a
-			 JOIN rooms r ON r.id = a.room_id
+			 LEFT JOIN rooms r ON r.id = a.room_id
 			 WHERE r.home_id = $1
-			   AND to_tsvector('english', a.name) @@ websearch_to_tsquery('english', $2)
-			 LIMIT 10`,
-			homeID, query,
+			 ORDER BY r.name, a.name`,
+			homeID,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("text search (all): %w", err)
+			return nil, fmt.Errorf("list appliances (all): %w", err)
 		}
 		defer result.Close()
 		for result.Next() {
 			var s ApplianceSummary
-			if err := result.Scan(&s.ID, &s.Name, &s.Type, &s.State); err != nil {
+			if err := result.Scan(&s.ID, &s.Name, &s.Type, &s.Room, &s.State); err != nil {
 				continue
 			}
 			rows = append(rows, s)
 		}
 	} else {
 		result, err := t.pool.Query(ctx,
-			`SELECT id, name, type, state
-			 FROM appliances
-			 WHERE id = ANY($1)
-			   AND to_tsvector('english', name) @@ websearch_to_tsquery('english', $2)
-			 LIMIT 10`,
-			ids, query,
+			`SELECT a.id, a.name, a.type, COALESCE(r.name, ''), a.state
+			 FROM appliances a
+			 LEFT JOIN rooms r ON r.id = a.room_id
+			 WHERE a.id = ANY($1)
+			 ORDER BY r.name, a.name`,
+			ids,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("text search (filtered): %w", err)
+			return nil, fmt.Errorf("list appliances (filtered): %w", err)
 		}
 		defer result.Close()
 		for result.Next() {
 			var s ApplianceSummary
-			if err := result.Scan(&s.ID, &s.Name, &s.Type, &s.State); err != nil {
+			if err := result.Scan(&s.ID, &s.Name, &s.Type, &s.Room, &s.State); err != nil {
 				continue
 			}
 			rows = append(rows, s)
