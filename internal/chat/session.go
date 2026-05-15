@@ -106,10 +106,13 @@ func (s *Session) Run(ctx context.Context) error {
 			eventType, _ := event["type"].(string)
 
 			if eventType == "response.function_call_arguments.done" {
+				// Tell the frontend to remove any text the model streamed before
+				// deciding to call a tool. Without this the UI shows a broken
+				// partial bubble ("I've ") followed by the real response.
+				_ = writeJSON(ctx, s.frontend, map[string]any{"type": "sol.discard_last"})
 				if err := s.handleToolCall(ctx, upstream, event); err != nil {
 					slog.Warn("chat/session: tool call error", "error", err)
 				}
-				// Don't forward the raw tool call event to the frontend.
 				continue
 			}
 
