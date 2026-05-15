@@ -173,6 +173,12 @@ func (s *Session) runCompletions(ctx context.Context, client openai.Client) erro
 			return nil
 		}
 
+		// Kimi K2 often generates text before tool calls. Discard that partial
+		// bubble so it doesn't appear alongside the final response.
+		if textBuf.Len() > 0 {
+			_ = s.emit(ctx, map[string]any{"type": "sol.discard_last"})
+		}
+
 		for _, tc := range toolCalls {
 			slog.Info("chat: tool call", "tool", tc.Function.Name, "home", s.homeID, "user", s.u.ID)
 			result := s.tools.Dispatch(ctx, tc.Function.Name, tc.Function.Arguments, s.u, s.homeID)
