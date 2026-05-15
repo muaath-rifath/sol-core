@@ -68,18 +68,12 @@ services:
       - "traefik.http.routers.sol-health.entrypoints=websecure"
       - "traefik.http.routers.sol-health.tls.certresolver=letsencrypt"
       - "traefik.http.routers.sol-health.service=sol-svc"
-      # WebSocket endpoint — auth handled by sol-core (?token= query param; browsers cannot set Authorization header on WS upgrade)
-      - "traefik.http.routers.sol-ws.rule=Host(`${API_DOMAIN}`) && Path(`/ws`)"
+      # All WebSocket upgrades — browsers cannot send Authorization on WS; auth handled by sol-core via ?token=
+      - "traefik.http.routers.sol-ws.rule=Host(`${API_DOMAIN}`) && Headers(`Upgrade`, `websocket`)"
       - "traefik.http.routers.sol-ws.entrypoints=websecure"
       - "traefik.http.routers.sol-ws.tls.certresolver=letsencrypt"
       - "traefik.http.routers.sol-ws.priority=200"
       - "traefik.http.routers.sol-ws.service=sol-svc"
-      # Chat WebSocket — same bypass: browsers can't send Authorization on WS upgrade; auth via ?token= in sol-core
-      - "traefik.http.routers.sol-chat-ws.rule=Host(`${API_DOMAIN}`) && PathRegexp(`/api/v1/homes/[^/]+/chat/ws`)"
-      - "traefik.http.routers.sol-chat-ws.entrypoints=websecure"
-      - "traefik.http.routers.sol-chat-ws.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.sol-chat-ws.priority=200"
-      - "traefik.http.routers.sol-chat-ws.service=sol-svc"
       # Device OTA firmware download (mTLS protected)
       - "traefik.http.routers.sol-ota.rule=Host(`ota.sol.muaathrifath.me`) && PathPrefix(`/api/v1/ota/attempts/`)"
       - "traefik.http.routers.sol-ota.entrypoints=websecure"
