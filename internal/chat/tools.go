@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -42,6 +43,7 @@ type ApplianceSummary struct {
 
 // Dispatch routes a tool call from the Realtime API to the correct implementation.
 func (t *Tools) Dispatch(ctx context.Context, name, arguments string, u *user.User, homeID string) string {
+	slog.Info("chat: tool call", "tool", name, "home", homeID, "user", u.ID)
 	switch name {
 	case "discover_devices":
 		var args struct {
@@ -50,8 +52,10 @@ func (t *Tools) Dispatch(ctx context.Context, name, arguments string, u *user.Us
 		_ = json.Unmarshal([]byte(arguments), &args)
 		result, err := t.discoverDevices(ctx, u, homeID, args.Query)
 		if err != nil {
+			slog.Warn("chat: discover_devices error", "query", args.Query, "error", err)
 			return fmt.Sprintf("error: %s", err.Error())
 		}
+		slog.Info("chat: discover_devices result", "query", args.Query, "count", len(result))
 		b, _ := json.Marshal(result)
 		return string(b)
 
@@ -62,11 +66,14 @@ func (t *Tools) Dispatch(ctx context.Context, name, arguments string, u *user.Us
 		}
 		_ = json.Unmarshal([]byte(arguments), &args)
 		if err := t.controlDevice(ctx, u, args.ApplianceID, args.Action); err != nil {
+			slog.Warn("chat: control_device error", "appliance", args.ApplianceID, "action", args.Action, "error", err)
 			return fmt.Sprintf("error: %s", err.Error())
 		}
+		slog.Info("chat: control_device ok", "appliance", args.ApplianceID, "action", args.Action)
 		return "done"
 
 	default:
+		slog.Warn("chat: unknown tool", "tool", name)
 		return fmt.Sprintf("unknown tool: %s", name)
 	}
 }
