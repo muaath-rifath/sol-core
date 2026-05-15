@@ -56,8 +56,10 @@ func (s *Session) Run(ctx context.Context) error {
 			"tools":      toolSchemas(),
 			"tool_choice": "auto",
 			"instructions": "You are Sol, a smart home AI assistant. " +
-				"Use discover_devices to find appliances before controlling them. " +
-				"Only control appliances the user explicitly asks about. " +
+				"For device control requests: call discover_devices immediately with NO preceding text, " +
+				"then call control_device using the returned appliance_id. " +
+				"Only generate text after all tool calls are complete. " +
+				"For greetings or non-device questions, respond directly without calling any tools. " +
 				"Be concise.",
 		},
 	}
