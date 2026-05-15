@@ -162,9 +162,9 @@ func main() {
 	cohereClient := chat.NewCohereClient(cfg.CohereAzureEndpoint, cfg.CohereAzureKey, cfg.CohereAzureDeployment, cfg.CohereAPIVersion)
 	chatTools := chat.NewTools(permSvc, deviceSvc, cohereClient, pgPool)
 	chatHandler := chat.NewHandler(chatTools, chat.SessionConfig{
-		Endpoint:   cfg.AzureOpenAIEndpoint,
-		APIKey:     cfg.AzureOpenAIKey,
-		Deployment: cfg.AzureDeployment,
+		Endpoint:   cfg.KimiEndpoint,
+		APIKey:     cfg.KimiAPIKey,
+		Deployment: cfg.KimiDeployment,
 	})
 	deviceSvc.SetEmbedder(cohereClient)
 

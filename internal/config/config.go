@@ -32,11 +32,10 @@ type Config struct {
 	// AI Service
 	AIServiceURL string
 
-	// Azure OpenAI Realtime — used by the chat package
-	AzureOpenAIEndpoint string
-	AzureOpenAIKey      string
-	AzureDeployment     string
-	AzureAPIVersion     string
+	// Kimi K2 via Azure AI Services — used by the chat package
+	KimiEndpoint   string
+	KimiAPIKey     string
+	KimiDeployment string
 
 	// Cohere embed-v4-0 via Azure AI Services — used for appliance embeddings
 	CohereAzureEndpoint    string
@@ -76,10 +75,9 @@ func Load() (*Config, error) {
 		MinioUseSSL:           os.Getenv("MINIO_USE_SSL") == "true",
 		MinioBucket:           envOrDefault("MINIO_BUCKET", "firmware"),
 		AIServiceURL:          envOrDefault("AI_SERVICE_URL", "http://localhost:8000"),
-		AzureOpenAIEndpoint:    os.Getenv("AZURE_OPENAI_ENDPOINT"),
-		AzureOpenAIKey:         os.Getenv("AZURE_OPENAI_KEY"),
-		AzureDeployment:        envOrDefault("AZURE_DEPLOYMENT", "gpt-realtime-1.5"),
-		AzureAPIVersion:        envOrDefault("AZURE_API_VERSION", "2025-04-01-preview"),
+		KimiEndpoint:   os.Getenv("KIMI_ENDPOINT"),
+		KimiAPIKey:     os.Getenv("KIMI_API_KEY"),
+		KimiDeployment: envOrDefault("KIMI_DEPLOYMENT", "Kimi-K2.6"),
 		CohereAzureEndpoint:    envOrDefault("COHERE_AZURE_ENDPOINT", "https://muaat-mmxdtncp-eastus2.services.ai.azure.com"),
 		CohereAzureKey:         os.Getenv("COHERE_AZURE_KEY"),
 		CohereAzureDeployment:  envOrDefault("COHERE_AZURE_DEPLOYMENT", "embed-v4-0"),
