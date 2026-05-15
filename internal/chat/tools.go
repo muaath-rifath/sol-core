@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/muaathrifath/sol-core/internal/device"
@@ -66,12 +67,31 @@ func (t *Tools) Dispatch(ctx context.Context, name, arguments string, u *user.Us
 			Action      string `json:"action"`
 		}
 		_ = json.Unmarshal([]byte(arguments), &args)
-		if err := t.controlDevice(ctx, u, args.ApplianceID, args.Action); err != nil {
+		result, err := t.controlDevice(ctx, u, args.ApplianceID, args.Action)
+		if err != nil {
 			slog.Warn("chat: control_device error", "appliance", args.ApplianceID, "action", args.Action, "error", err)
-			return fmt.Sprintf("error: %s", err.Error())
 		}
-		slog.Info("chat: control_device ok", "appliance", args.ApplianceID, "action", args.Action)
-		return "done"
+		slog.Info("chat: control_device result", "appliance", args.ApplianceID, "action", args.Action, "ok", result.OK)
+		b, _ := json.Marshal(result)
+		return string(b)
+
+	case "check_device_online":
+		var args struct {
+			ApplianceID string `json:"appliance_id"`
+		}
+		_ = json.Unmarshal([]byte(arguments), &args)
+		result := t.checkDeviceOnline(ctx, u, args.ApplianceID)
+		b, _ := json.Marshal(result)
+		return string(b)
+
+	case "get_device_state":
+		var args struct {
+			ApplianceID string `json:"appliance_id"`
+		}
+		_ = json.Unmarshal([]byte(arguments), &args)
+		result := t.getDeviceState(ctx, u, args.ApplianceID)
+		b, _ := json.Marshal(result)
+		return string(b)
 
 	default:
 		slog.Warn("chat: unknown tool", "tool", name)
@@ -206,19 +226,37 @@ func (t *Tools) listAllAppliances(ctx context.Context, homeID string, ids []stri
 	return rows, nil
 }
 
-func (t *Tools) controlDevice(ctx context.Context, u *user.User, applianceID, action string) error {
+type controlDeviceResult struct {
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
+}
+
+type checkDeviceOnlineResult struct {
+	Online bool   `json:"online"`
+	Reason string `json:"reason,omitempty"`
+}
+
+type getDeviceStateResult struct {
+	State     map[string]any `json:"state"`
+	UpdatedAt string         `json:"updated_at,omitempty"`
+	Error     string         `json:"error,omitempty"`
+}
+
+func (t *Tools) controlDevice(ctx context.Context, u *user.User, applianceID, action string) (controlDeviceResult, error) {
 	// Permission check — same service used by REST handlers.
 	allowed, err := t.permGate.CheckAppliance(ctx, u.ID, applianceID)
 	if err != nil {
-		return fmt.Errorf("permission check: %w", err)
+		msg := fmt.Sprintf("permission check: %s", err.Error())
+		return controlDeviceResult{OK: false, Message: msg}, err
 	}
 	if !allowed {
-		return fmt.Errorf("access denied")
+		return controlDeviceResult{OK: false, Message: "access denied"}, nil
 	}
 
 	appliance, err := t.deviceSvc.GetAppliance(ctx, applianceID)
 	if err != nil {
-		return fmt.Errorf("get appliance: %w", err)
+		msg := fmt.Sprintf("get appliance: %s", err.Error())
+		return controlDeviceResult{OK: false, Message: msg}, err
 	}
 
 	cmd := device.Command{
@@ -229,7 +267,51 @@ func (t *Tools) controlDevice(ctx context.Context, u *user.User, applianceID, ac
 		cmd.Params = map[string]any{"channel": *appliance.Channel}
 	}
 
-	return t.deviceSvc.SendCommand(ctx, cmd)
+	ack, err := t.deviceSvc.SendCommandAwait(ctx, cmd, 5*time.Second)
+	if err != nil {
+		return controlDeviceResult{OK: false, Message: ack.Message}, err
+	}
+	return controlDeviceResult{OK: ack.OK, Message: ack.Message}, nil
+}
+
+func (t *Tools) checkDeviceOnline(ctx context.Context, u *user.User, applianceID string) checkDeviceOnlineResult {
+	allowed, err := t.permGate.CheckAppliance(ctx, u.ID, applianceID)
+	if err != nil || !allowed {
+		return checkDeviceOnlineResult{Online: false, Reason: "access denied"}
+	}
+
+	appliance, err := t.deviceSvc.GetAppliance(ctx, applianceID)
+	if err != nil {
+		return checkDeviceOnlineResult{Online: false, Reason: "appliance not found"}
+	}
+	dev, err := t.deviceSvc.Get(ctx, appliance.DeviceID)
+	if err != nil {
+		return checkDeviceOnlineResult{Online: false, Reason: "device not found"}
+	}
+
+	if !dev.Online {
+		return checkDeviceOnlineResult{Online: false, Reason: "device reports offline"}
+	}
+	if time.Since(dev.UpdatedAt) > t.deviceSvc.OnlineFreshness() {
+		return checkDeviceOnlineResult{Online: false, Reason: "device status is stale"}
+	}
+	return checkDeviceOnlineResult{Online: true}
+}
+
+func (t *Tools) getDeviceState(ctx context.Context, u *user.User, applianceID string) getDeviceStateResult {
+	allowed, err := t.permGate.CheckAppliance(ctx, u.ID, applianceID)
+	if err != nil || !allowed {
+		return getDeviceStateResult{State: map[string]any{}, Error: "access denied"}
+	}
+
+	appliance, err := t.deviceSvc.GetAppliance(ctx, applianceID)
+	if err != nil {
+		return getDeviceStateResult{State: map[string]any{}, Error: "appliance not found"}
+	}
+	return getDeviceStateResult{
+		State:     appliance.State,
+		UpdatedAt: appliance.UpdatedAt.Format(time.RFC3339),
+	}
 }
 
 // formatVector converts []float32 to pgvector text literal: "[0.1,0.2,...]"
