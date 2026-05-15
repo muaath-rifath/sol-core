@@ -87,8 +87,17 @@ func (s *Session) Run(ctx context.Context) error {
 		}
 	}()
 
-	// Azure → Frontend (with tool call interception)
+	// Azure → Frontend (with tool call interception and text buffering).
+	//
+	// Text events (response.text.delta / response.text.done) are held in a
+	// per-response buffer and only released to the frontend when response.done
+	// arrives with no tool calls. If a tool call is intercepted, the buffer is
+	// discarded — the model had started speaking before deciding to call a tool
+	// and that pre-tool text should never reach the UI.
 	go func() {
+		var textBuf [][]byte
+		responseHasTool := false
+
 		for {
 			_, msg, err := upstream.Read(ctx)
 			if err != nil {
@@ -98,28 +107,40 @@ func (s *Session) Run(ctx context.Context) error {
 
 			var event map[string]any
 			if json.Unmarshal(msg, &event) != nil {
-				// Forward as-is if we can't parse.
 				_ = s.frontend.Write(ctx, websocket.MessageText, msg)
 				continue
 			}
 
 			eventType, _ := event["type"].(string)
 
-			if eventType == "response.function_call_arguments.done" {
-				// Tell the frontend to remove any text the model streamed before
-				// deciding to call a tool. Without this the UI shows a broken
-				// partial bubble ("I've ") followed by the real response.
-				_ = writeJSON(ctx, s.frontend, map[string]any{"type": "sol.discard_last"})
+			switch eventType {
+			case "response.created":
+				textBuf = nil
+				responseHasTool = false
+				_ = s.frontend.Write(ctx, websocket.MessageText, msg)
+
+			case "response.text.delta", "response.text.done":
+				textBuf = append(textBuf, msg)
+
+			case "response.function_call_arguments.done":
+				responseHasTool = true
+				textBuf = nil // discard pre-tool text
 				if err := s.handleToolCall(ctx, upstream, event); err != nil {
 					slog.Warn("chat/session: tool call error", "error", err)
 				}
-				continue
-			}
 
-			// Forward all other events to the frontend.
-			if err := s.frontend.Write(ctx, websocket.MessageText, msg); err != nil {
-				errCh <- err
-				return
+			case "response.done":
+				if !responseHasTool {
+					for _, b := range textBuf {
+						_ = s.frontend.Write(ctx, websocket.MessageText, b)
+					}
+				}
+				textBuf = nil
+				responseHasTool = false
+				_ = s.frontend.Write(ctx, websocket.MessageText, msg)
+
+			default:
+				_ = s.frontend.Write(ctx, websocket.MessageText, msg)
 			}
 		}
 	}()
