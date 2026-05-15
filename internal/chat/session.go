@@ -128,36 +128,12 @@ func (s *Session) runCompletions(ctx context.Context, client openai.Client) erro
 		})
 
 		var acc openai.ChatCompletionAccumulator
-		var textBuf strings.Builder
 
 		for stream.Next() {
-			chunk := stream.Current()
-			acc.AddChunk(chunk)
-			if len(chunk.Choices) > 0 {
-				if delta := chunk.Choices[0].Delta.Content; delta != "" {
-					textBuf.WriteString(delta)
-					if err := s.emit(ctx, map[string]any{
-						"type":  "response.text.delta",
-						"delta": delta,
-					}); err != nil {
-						_ = stream.Close()
-						return err
-					}
-				}
-			}
+			acc.AddChunk(stream.Current())
 		}
 		if err := stream.Err(); err != nil {
 			return fmt.Errorf("chat/session: stream: %w", err)
-		}
-
-		text := textBuf.String()
-		if text != "" {
-			if err := s.emit(ctx, map[string]any{"type": "response.text.done", "text": text}); err != nil {
-				return err
-			}
-		}
-		if err := s.emit(ctx, map[string]any{"type": "response.done"}); err != nil {
-			return err
 		}
 
 		if len(acc.Choices) == 0 {
@@ -169,14 +145,25 @@ func (s *Session) runCompletions(ctx context.Context, client openai.Client) erro
 
 		toolCalls := msg.ToolCalls
 		if len(toolCalls) == 0 {
+			// Final text response — emit now that we know there are no tool calls.
+			text := msg.Content
+			if text != "" {
+				if err := s.emit(ctx, map[string]any{"type": "response.text.delta", "delta": text}); err != nil {
+					return err
+				}
+				if err := s.emit(ctx, map[string]any{"type": "response.text.done", "text": text}); err != nil {
+					return err
+				}
+			}
+			if err := s.emit(ctx, map[string]any{"type": "response.done"}); err != nil {
+				return err
+			}
 			s.messages = append(s.messages, msg.ToParam())
 			return nil
 		}
 
-		// Kimi K2 often generates text before tool calls. Discard that partial
-		// bubble so it doesn't appear alongside the final response.
-		if textBuf.Len() > 0 {
-			_ = s.emit(ctx, map[string]any{"type": "sol.discard_last"})
+		if err := s.emit(ctx, map[string]any{"type": "response.done"}); err != nil {
+			return err
 		}
 
 		for _, tc := range toolCalls {
