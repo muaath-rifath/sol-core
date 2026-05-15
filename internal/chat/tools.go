@@ -79,29 +79,28 @@ func (t *Tools) Dispatch(ctx context.Context, name, arguments string, u *user.Us
 }
 
 func (t *Tools) discoverDevices(ctx context.Context, u *user.User, homeID, query string) ([]ApplianceSummary, error) {
-	// Get accessible appliance IDs for this user.
 	ids, allAccess, err := t.permGate.ListAccessibleApplianceIDs(ctx, homeID, u.ID)
 	if err != nil {
 		return nil, fmt.Errorf("list accessible appliances: %w", err)
 	}
-
-	// If member has no access to any appliance, return empty.
 	if !allAccess && len(ids) == 0 {
 		return []ApplianceSummary{}, nil
 	}
 
-	// Embed the user query.
-	vec, err := t.embedder.Embed(ctx, query, "search_query")
-	if err != nil {
-		return nil, fmt.Errorf("embed query: %w", err)
+	// Try vector search; fall back to full-text search when the embedder is unavailable.
+	vec, embedErr := t.embedder.Embed(ctx, query, "search_query")
+	if embedErr != nil {
+		slog.Warn("chat: embedder unavailable, falling back to text search", "error", embedErr)
+		return t.textSearchAppliances(ctx, homeID, ids, allAccess, query)
 	}
 
-	vecStr := formatVector(vec)
+	return t.vectorSearchAppliances(ctx, homeID, ids, allAccess, formatVector(vec))
+}
 
+func (t *Tools) vectorSearchAppliances(ctx context.Context, homeID string, ids []string, allAccess bool, vecStr string) ([]ApplianceSummary, error) {
 	var rows []ApplianceSummary
 
 	if allAccess {
-		// Admin/owner: search all appliances in this home via rooms join.
 		result, err := t.pool.Query(ctx,
 			`SELECT a.id, a.name, a.type, a.state
 			 FROM appliances a
@@ -123,7 +122,6 @@ func (t *Tools) discoverDevices(ctx context.Context, u *user.User, homeID, query
 			rows = append(rows, s)
 		}
 	} else {
-		// Member: search only permitted appliances.
 		result, err := t.pool.Query(ctx,
 			`SELECT id, name, type, state
 			 FROM appliances
@@ -134,6 +132,61 @@ func (t *Tools) discoverDevices(ctx context.Context, u *user.User, homeID, query
 		)
 		if err != nil {
 			return nil, fmt.Errorf("vector search (filtered): %w", err)
+		}
+		defer result.Close()
+		for result.Next() {
+			var s ApplianceSummary
+			if err := result.Scan(&s.ID, &s.Name, &s.Type, &s.State); err != nil {
+				continue
+			}
+			rows = append(rows, s)
+		}
+	}
+
+	if rows == nil {
+		rows = []ApplianceSummary{}
+	}
+	return rows, nil
+}
+
+// textSearchAppliances is the fallback used when the embedder is unavailable.
+// It uses PostgreSQL full-text search so multi-word queries like
+// "bedroom main light" still match an appliance named "Main Light".
+func (t *Tools) textSearchAppliances(ctx context.Context, homeID string, ids []string, allAccess bool, query string) ([]ApplianceSummary, error) {
+	var rows []ApplianceSummary
+
+	if allAccess {
+		result, err := t.pool.Query(ctx,
+			`SELECT a.id, a.name, a.type, a.state
+			 FROM appliances a
+			 JOIN rooms r ON r.id = a.room_id
+			 WHERE r.home_id = $1
+			   AND to_tsvector('english', a.name) @@ websearch_to_tsquery('english', $2)
+			 LIMIT 10`,
+			homeID, query,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("text search (all): %w", err)
+		}
+		defer result.Close()
+		for result.Next() {
+			var s ApplianceSummary
+			if err := result.Scan(&s.ID, &s.Name, &s.Type, &s.State); err != nil {
+				continue
+			}
+			rows = append(rows, s)
+		}
+	} else {
+		result, err := t.pool.Query(ctx,
+			`SELECT id, name, type, state
+			 FROM appliances
+			 WHERE id = ANY($1)
+			   AND to_tsvector('english', name) @@ websearch_to_tsquery('english', $2)
+			 LIMIT 10`,
+			ids, query,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("text search (filtered): %w", err)
 		}
 		defer result.Close()
 		for result.Next() {
