@@ -263,8 +263,17 @@ func (t *Tools) controlDevice(ctx context.Context, u *user.User, applianceID, ac
 		DeviceID: appliance.DeviceID,
 		Action:   action,
 	}
-	if appliance.Channel != nil {
-		cmd.Params = map[string]any{"channel": *appliance.Channel}
+	switch action {
+	case "on", "off":
+		cmd.Action = "set_relay"
+		cmd.Params = map[string]any{"power": action == "on"}
+		if appliance.Channel != nil {
+			cmd.Params["channel"] = *appliance.Channel
+		}
+	default:
+		if appliance.Channel != nil {
+			cmd.Params = map[string]any{"channel": *appliance.Channel}
+		}
 	}
 
 	ack, err := t.deviceSvc.SendCommandAwait(ctx, cmd, 5*time.Second)
