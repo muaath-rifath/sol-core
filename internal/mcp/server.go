@@ -1,14 +1,3 @@
-// TODO(permissions): wire permission.Service into MCP. Steps:
-//  1. Wrap mcp/sse mount in cmd/sol/main.go with authMiddleware so tool calls
-//     have a *user.User on the context.
-//  2. Pass *permission.Service into NewServer.
-//  3. list_appliances: require home_id arg; call
-//     permSvc.ListAccessibleApplianceIDs(ctx, homeID, u.ID); filter
-//     deviceSvc.ListAllAppliances by the returned IDs (skip filter when
-//     allAccess is true).
-//  4. set_appliance_state: call permSvc.CheckAppliance(ctx, u.ID,
-//     args.ApplianceID) before issuing the command.
-
 package mcp
 
 import (
@@ -19,19 +8,23 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/muaathrifath/sol-core/internal/device"
+	"github.com/muaathrifath/sol-core/internal/permission"
 	"github.com/muaathrifath/sol-core/internal/room"
+	"github.com/muaathrifath/sol-core/internal/user"
 )
 
 type Server struct {
 	mcpServer *mcp.Server
 	deviceSvc *device.Service
 	roomSvc   *room.Service
+	permSvc   *permission.Service
 }
 
-func NewServer(deviceSvc *device.Service, roomSvc *room.Service) *Server {
+func NewServer(deviceSvc *device.Service, roomSvc *room.Service, permSvc *permission.Service) *Server {
 	s := &Server{
 		deviceSvc: deviceSvc,
 		roomSvc:   roomSvc,
+		permSvc:   permSvc,
 	}
 
 	s.mcpServer = mcp.NewServer(&mcp.Implementation{
@@ -46,18 +39,44 @@ func NewServer(deviceSvc *device.Service, roomSvc *room.Service) *Server {
 
 func (s *Server) registerTools() {
 	// Tool: list_appliances
+	type ListAppliancesArgs struct {
+		HomeID string `json:"home_id"`
+	}
+
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "list_appliances",
-		Description: "List all available appliances in the smart home and their current power states.",
-	}, func(ctx context.Context, req *mcp.CallToolRequest, args struct{}) (*mcp.CallToolResult, any, error) {
+		Description: "List appliances in the smart home that the caller has access to and their current power states. Requires home_id.",
+	}, func(ctx context.Context, req *mcp.CallToolRequest, args ListAppliancesArgs) (*mcp.CallToolResult, any, error) {
+		u := user.FromContext(ctx)
+		if u == nil {
+			return nil, nil, fmt.Errorf("unauthorized")
+		}
+		if args.HomeID == "" {
+			return nil, nil, fmt.Errorf("home_id is required")
+		}
+
+		accessibleIDs, allAccess, err := s.permSvc.ListAccessibleApplianceIDs(ctx, args.HomeID, u.ID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to check permissions: %w", err)
+		}
+
 		apps, err := s.deviceSvc.ListAllAppliances(ctx)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to list appliances: %w", err)
 		}
 
+		// Build lookup set for non-owner access
+		allowed := make(map[string]bool, len(accessibleIDs))
+		for _, id := range accessibleIDs {
+			allowed[id] = true
+		}
+
 		var sb strings.Builder
 		sb.WriteString("Available Appliances:\n")
 		for _, app := range apps {
+			if !allAccess && !allowed[app.ID] {
+				continue
+			}
 			isOn := false
 			if app.State != nil {
 				if val, ok := app.State["isOn"].(bool); ok {
@@ -90,6 +109,19 @@ func (s *Server) registerTools() {
 		Name:        "set_appliance_state",
 		Description: "Control the power state of a specific appliance by its ID.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, args SetApplianceStateArgs) (*mcp.CallToolResult, any, error) {
+		u := user.FromContext(ctx)
+		if u == nil {
+			return nil, nil, fmt.Errorf("unauthorized")
+		}
+
+		ok, err := s.permSvc.CheckAppliance(ctx, u.ID, args.ApplianceID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("permission check failed: %w", err)
+		}
+		if !ok {
+			return nil, nil, fmt.Errorf("access denied to appliance %s", args.ApplianceID)
+		}
+
 		app, err := s.deviceSvc.GetAppliance(ctx, args.ApplianceID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("appliance not found: %w", err)

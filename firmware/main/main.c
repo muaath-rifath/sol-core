@@ -95,7 +95,7 @@ static void publish_state(bool online) {
   }
 
   cJSON_AddStringToObject(state, "deviceId", s_device_id);
-  cJSON_AddStringToObject(state, "name", "ESP32 LED Controller");
+  cJSON_AddStringToObject(state, "name", "Sol Node");
   cJSON_AddBoolToObject(state, "online", online);
   cJSON_AddStringToObject(state, "templateId", runtime_get_template_id());
   cJSON_AddNumberToObject(state, "ts", (double)esp_log_timestamp());
@@ -430,8 +430,7 @@ void app_main(void) {
   snprintf(s_topic_voice, sizeof(s_topic_voice), "sol/devices/%s/voice", s_device_id);
 
   snprintf(s_lwt_payload, sizeof(s_lwt_payload),
-           "{\"deviceId\":\"%s\",\"name\":\"ESP32 LED "
-           "Controller\",\"online\":false,\"ts\":0}",
+           "{\"deviceId\":\"%s\",\"name\":\"Sol Node\",\"online\":false,\"ts\":0}",
            s_device_id);
 
   s_certs = (cert_bundle_t){0};

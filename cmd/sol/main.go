@@ -157,6 +157,7 @@ func main() {
 	permSvc := permission.NewService(permRepo)
 	permHandler := permission.NewHandler(permSvc, roomSvc, deviceSvc)
 	deviceSvc.SetPermissionGate(permSvc)
+	deviceSvc.SetAutomationEvaluator(automationSvc)
 	roomSvc.SetPermissionGate(permSvc)
 
 	// Chat
@@ -170,7 +171,7 @@ func main() {
 	deviceSvc.SetEmbedder(cohereClient)
 
 	// MCP Server
-	mcpServer := mcp.NewServer(deviceSvc, roomSvc)
+	mcpServer := mcp.NewServer(deviceSvc, roomSvc, permSvc)
 
 	// Voice service — LiveKit room/token creation triggered by ESP32 wake word.
 	voiceSvc := voice.NewService(voice.Config{
@@ -319,8 +320,8 @@ func main() {
 	// Chat WebSocket
 	mux.Handle("GET /api/v1/homes/{homeId}/chat/ws", authMiddleware.Wrap(http.HandlerFunc(chatHandler.ServeWS)))
 
-	mux.Handle("GET /api/v1/mcp/sse", mcpServer.Handler())
-	mux.Handle("POST /api/v1/mcp/sse", mcpServer.Handler())
+	mux.Handle("GET /api/v1/mcp/sse", authMiddleware.Wrap(mcpServer.Handler()))
+	mux.Handle("POST /api/v1/mcp/sse", authMiddleware.Wrap(mcpServer.Handler()))
 
 	// Health
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {

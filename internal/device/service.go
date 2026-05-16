@@ -90,6 +90,13 @@ type PermissionGate interface {
 	InsertApplianceGrant(ctx context.Context, homeID, userID, applianceID string, grantedBy *string) error
 }
 
+// AutomationEvaluator is satisfied by *automation.Service. Defined here to
+// keep the dependency graph one-directional (automation imports device, not
+// the other way around).
+type AutomationEvaluator interface {
+	Evaluate(ctx context.Context, triggerType string, payload map[string]any) error
+}
+
 type Service struct {
 	repo              *Repository
 	otaRepo           *OTAAttemptRepository
@@ -97,6 +104,7 @@ type Service struct {
 	mqtt              *mqtt.Client
 	hub               *ws.Hub
 	permGate          PermissionGate
+	automationEval    AutomationEvaluator
 	embedder          ApplianceEmbedder
 	onlineFreshness   time.Duration
 	otaAttemptTimeout time.Duration
@@ -138,6 +146,10 @@ func (s *Service) HomeIDForAppliance(ctx context.Context, applianceID string) (s
 // keeps NewService's signature stable.
 func (s *Service) SetPermissionGate(g PermissionGate) {
 	s.permGate = g
+}
+
+func (s *Service) SetAutomationEvaluator(a AutomationEvaluator) {
+	s.automationEval = a
 }
 
 // SetEmbedder wires in the embedding client for appliance vector generation.
@@ -915,6 +927,17 @@ func (s *Service) HandleStateUpdate(ctx context.Context, deviceID string, state 
 		"device_id": deviceID,
 		"state":     state,
 	})
+
+	if s.automationEval != nil {
+		payload := make(map[string]any, len(state)+1)
+		for k, v := range state {
+			payload[k] = v
+		}
+		payload["device_id"] = deviceID
+		if err := s.automationEval.Evaluate(ctx, "device_state", payload); err != nil {
+			slog.Error("automation evaluate", "device_id", deviceID, "error", err)
+		}
+	}
 
 	return nil
 }

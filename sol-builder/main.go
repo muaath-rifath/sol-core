@@ -138,19 +138,48 @@ func appendLogs(apiURL, jobID, logs string) {
 	_, _ = http.DefaultClient.Do(req)
 }
 
+func findAppBinary(buildDir string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(buildDir, "project_description.json"))
+	if err != nil {
+		return "", fmt.Errorf("read project_description.json: %w", err)
+	}
+	var desc struct {
+		AppBin string `json:"app_bin"`
+	}
+	if err := json.Unmarshal(data, &desc); err != nil || desc.AppBin == "" {
+		return "", fmt.Errorf("app_bin not found in project_description.json")
+	}
+	return filepath.Join(buildDir, desc.AppBin), nil
+}
+
+func findModelBinary(buildDir string) string {
+	// esp-sr places model.bin in the build directory when WakeNet is configured
+	p := filepath.Join(buildDir, "model.bin")
+	if _, err := os.Stat(p); err == nil {
+		return p
+	}
+	return ""
+}
+
 func ingestBinaries(apiURL, templateID, targetBoard, jobID, srcDir string) (string, error) {
 	buildDir := filepath.Join(srcDir, "build")
+
+	appBin, err := findAppBinary(buildDir)
+	if err != nil {
+		return "", fmt.Errorf("find app binary: %w", err)
+	}
+	log.Printf("App binary: %s", appBin)
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	files := map[string]string{
+	requiredFiles := map[string]string{
 		"bootloader":      filepath.Join(buildDir, "bootloader", "bootloader.bin"),
 		"partition_table": filepath.Join(buildDir, "partition_table", "partition-table.bin"),
-		"app":             filepath.Join(buildDir, "my_led.bin"),
+		"app":             appBin,
 	}
 
-	for field, path := range files {
+	for field, path := range requiredFiles {
 		file, err := os.Open(path)
 		if err != nil {
 			return "", fmt.Errorf("failed to open %s: %w", path, err)
@@ -158,6 +187,17 @@ func ingestBinaries(apiURL, templateID, targetBoard, jobID, srcDir string) (stri
 		defer file.Close()
 		part, _ := writer.CreateFormFile(field, filepath.Base(path))
 		io.Copy(part, file)
+	}
+
+	// Include model binary if the build produced one (esp-sr WakeNet)
+	if modelPath := findModelBinary(buildDir); modelPath != "" {
+		log.Printf("Including model binary: %s", modelPath)
+		file, err := os.Open(modelPath)
+		if err == nil {
+			defer file.Close()
+			part, _ := writer.CreateFormFile("model", "model.bin")
+			io.Copy(part, file)
+		}
 	}
 
 	writer.WriteField("template_id", templateID)
