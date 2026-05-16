@@ -19,13 +19,18 @@ type Broadcaster interface {
 	Broadcast(eventType string, data any)
 }
 
+type VoiceService interface {
+	HandleWake(ctx context.Context, deviceID string)
+}
+
 type Handler struct {
 	deviceSvc   DeviceService
 	broadcaster Broadcaster
+	voiceSvc    VoiceService
 }
 
-func NewHandler(deviceSvc DeviceService, broadcaster Broadcaster) *Handler {
-	return &Handler{deviceSvc: deviceSvc, broadcaster: broadcaster}
+func NewHandler(deviceSvc DeviceService, broadcaster Broadcaster, voiceSvc VoiceService) *Handler {
+	return &Handler{deviceSvc: deviceSvc, broadcaster: broadcaster, voiceSvc: voiceSvc}
 }
 
 func (h *Handler) Handle(topic string, payload []byte) {
@@ -84,6 +89,11 @@ func (h *Handler) Handle(topic string, payload []byte) {
 		}
 		if err := h.deviceSvc.HandleOTAStatus(ctx, deviceID, data); err != nil {
 			slog.Error("handle ota status", "error", err, "device_id", deviceID)
+		}
+
+	case "wake":
+		if h.voiceSvc != nil {
+			h.voiceSvc.HandleWake(ctx, deviceID)
 		}
 
 	default:

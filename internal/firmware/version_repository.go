@@ -15,6 +15,7 @@ type FirmwareVersion struct {
 	BootloaderKey string    `json:"bootloader_key"`
 	PartitionKey  string    `json:"partition_key"`
 	AppKey        string    `json:"app_key"`
+	ModelKey      *string   `json:"model_key,omitempty"`
 	SourceKey     *string   `json:"source_key,omitempty"`
 	SizeBytes     *int64    `json:"size_bytes"`
 	UploadedBy    *string   `json:"uploaded_by,omitempty"`
@@ -31,9 +32,9 @@ func NewVersionRepository(pool *pgxpool.Pool) *VersionRepository {
 
 func (r *VersionRepository) Create(ctx context.Context, v *FirmwareVersion) error {
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO firmware_versions (id, template_id, version, bootloader_key, partition_key, app_key, source_key, size_bytes, uploaded_by, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-		v.ID, v.TemplateID, v.Version, v.BootloaderKey, v.PartitionKey, v.AppKey, v.SourceKey, v.SizeBytes, v.UploadedBy, v.CreatedAt,
+		`INSERT INTO firmware_versions (id, template_id, version, bootloader_key, partition_key, app_key, model_key, source_key, size_bytes, uploaded_by, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		v.ID, v.TemplateID, v.Version, v.BootloaderKey, v.PartitionKey, v.AppKey, v.ModelKey, v.SourceKey, v.SizeBytes, v.UploadedBy, v.CreatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("create firmware version: %w", err)
@@ -42,7 +43,7 @@ func (r *VersionRepository) Create(ctx context.Context, v *FirmwareVersion) erro
 }
 
 func (r *VersionRepository) List(ctx context.Context, templateID string) ([]FirmwareVersion, error) {
-	query := `SELECT id, template_id, version, bootloader_key, partition_key, app_key, source_key, size_bytes, uploaded_by, created_at
+	query := `SELECT id, template_id, version, bootloader_key, partition_key, app_key, model_key, source_key, size_bytes, uploaded_by, created_at
 		FROM firmware_versions`
 	args := []any{}
 	if templateID != "" {
@@ -67,6 +68,7 @@ func (r *VersionRepository) List(ctx context.Context, templateID string) ([]Firm
 			&v.BootloaderKey,
 			&v.PartitionKey,
 			&v.AppKey,
+			&v.ModelKey,
 			&v.SourceKey,
 			&v.SizeBytes,
 			&v.UploadedBy,
@@ -83,7 +85,7 @@ func (r *VersionRepository) List(ctx context.Context, templateID string) ([]Firm
 func (r *VersionRepository) GetByID(ctx context.Context, id string) (*FirmwareVersion, error) {
 	var v FirmwareVersion
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, template_id, version, bootloader_key, partition_key, app_key, source_key, size_bytes, uploaded_by, created_at
+		`SELECT id, template_id, version, bootloader_key, partition_key, app_key, model_key, source_key, size_bytes, uploaded_by, created_at
 		 FROM firmware_versions WHERE id = $1`, id,
 	).Scan(
 		&v.ID,
@@ -92,6 +94,7 @@ func (r *VersionRepository) GetByID(ctx context.Context, id string) (*FirmwareVe
 		&v.BootloaderKey,
 		&v.PartitionKey,
 		&v.AppKey,
+		&v.ModelKey,
 		&v.SourceKey,
 		&v.SizeBytes,
 		&v.UploadedBy,

@@ -195,6 +195,19 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var modelKey *string
+	model, modelHeader, err := r.FormFile("model")
+	if err == nil {
+		defer model.Close()
+		key, uploadErr := h.store.UploadVersioned(r.Context(), templateID, version, "model.bin", model, modelHeader.Size)
+		if uploadErr != nil {
+			slog.Error("upload model", "error", uploadErr)
+			http.Error(w, `{"error":"upload failed"}`, http.StatusInternalServerError)
+			return
+		}
+		modelKey = &key
+	}
+
 	var sourceKey *string
 	source, sourceHeader, err := r.FormFile("source")
 	if err == nil {
@@ -216,6 +229,7 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		BootloaderKey: bootloaderKey,
 		PartitionKey:  partitionKey,
 		AppKey:        appKey,
+		ModelKey:      modelKey,
 		SourceKey:     sourceKey,
 		SizeBytes:     &sizeBytes,
 		UploadedBy:    &u.ID,
@@ -308,5 +322,32 @@ func (h *Handler) DownloadPartitionTable(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s-partition-table.bin", v.TemplateID, v.Version))
+	io.Copy(w, reader)
+}
+
+func (h *Handler) DownloadModel(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	v, err := h.versions.GetByID(r.Context(), id)
+	if err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+
+	if v.ModelKey == nil {
+		http.Error(w, `{"error":"no model binary for this firmware version"}`, http.StatusNotFound)
+		return
+	}
+
+	reader, err := h.store.Download(r.Context(), *v.ModelKey)
+	if err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+	defer reader.Close()
+
+	http.NewResponseController(w).SetWriteDeadline(time.Time{})
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s-%s-model.bin", v.TemplateID, v.Version))
 	io.Copy(w, reader)
 }
