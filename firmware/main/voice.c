@@ -127,17 +127,27 @@ static void afe_feed_task(void *arg)
     int log_tick = 0;
 #endif
 
+    ESP_LOGI(TAG, "afe_feed_task started: chunk=%d bytes=%d rx_chan=%p paused=%d",
+             n, (int)(n * sizeof(int32_t)), (void *)s_rx_chan, (int)s_afe_paused);
+
+    int err_log_count = 0;
     while (true) {
         if (s_afe_paused || !s_rx_chan) {
             vTaskDelay(pdMS_TO_TICKS(50));
             continue;
         }
         size_t got = 0;
-        if (i2s_channel_read(s_rx_chan, raw, (size_t)n * sizeof(int32_t),
-                             &got, pdMS_TO_TICKS(200)) != ESP_OK
-                || got < (size_t)n * sizeof(int32_t)) {
+        esp_err_t rc = i2s_channel_read(s_rx_chan, raw, (size_t)n * sizeof(int32_t),
+                                        &got, pdMS_TO_TICKS(1000));
+        if (rc != ESP_OK || got < (size_t)n * sizeof(int32_t)) {
+            if (err_log_count < 5) {
+                ESP_LOGE(TAG, "i2s_channel_read failed: rc=%s got=%d want=%d",
+                         esp_err_to_name(rc), (int)got, (int)(n * sizeof(int32_t)));
+                err_log_count++;
+            }
             continue;
         }
+        err_log_count = 0;
         for (int i = 0; i < n; i++) pcm[i] = (int16_t)(raw[i] >> MIC_SHIFT);
 #if CONFIG_VOICE_MIC_PEAK_LOG
         {
