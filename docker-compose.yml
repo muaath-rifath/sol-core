@@ -85,6 +85,17 @@ services:
       - "traefik.http.services.sol-svc.loadbalancer.server.port=8080"
       - "traefik.docker.network=sol-net"
 
+  sol-agent:
+    build:
+      context: ./agent
+    container_name: sol-agent
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - sol-core
+    networks:
+      - sol-net
+
   sol-builder:
     build:
       context: ./sol-builder
