@@ -123,6 +123,10 @@ static void afe_feed_task(void *arg)
     int16_t *pcm = heap_caps_malloc((size_t)n * sizeof(int16_t), MALLOC_CAP_INTERNAL);
     assert(raw && pcm);
 
+#if CONFIG_VOICE_MIC_PEAK_LOG
+    int log_tick = 0;
+#endif
+
     while (true) {
         if (s_afe_paused || !s_rx_chan) {
             vTaskDelay(pdMS_TO_TICKS(50));
@@ -135,6 +139,16 @@ static void afe_feed_task(void *arg)
             continue;
         }
         for (int i = 0; i < n; i++) pcm[i] = (int16_t)(raw[i] >> MIC_SHIFT);
+#if CONFIG_VOICE_MIC_PEAK_LOG
+        {
+            int16_t peak = 0;
+            for (int i = 0; i < n; i++) {
+                int16_t a = pcm[i] < 0 ? -pcm[i] : pcm[i];
+                if (a > peak) peak = a;
+            }
+            if (++log_tick >= 62) { ESP_LOGI(TAG, "mic peak: %d", peak); log_tick = 0; }
+        }
+#endif
         s_afe_handle->feed(s_afe_data, pcm);
     }
 }
@@ -318,6 +332,15 @@ void voice_init(esp_mqtt_client_handle_t client, const char *device_id)
         return;
     }
 
+    char *wn_model = esp_srmodel_filter(models, ESP_WN_PREFIX, NULL);
+    if (!wn_model) {
+        ESP_LOGE(TAG, "srmodels image has no wakenet model (wn9_*) — "
+                 "firmware version was uploaded without a valid srmodels.bin; wake word disabled. "
+                 "Delete sdkconfig, rebuild, and re-upload with build/srmodels/srmodels.bin as model.bin.");
+        return;
+    }
+    ESP_LOGI(TAG, "wakenet model: %s", wn_model);
+
     afe_config_t *cfg = afe_config_init("M", models, AFE_TYPE_SR, AFE_MODE_LOW_COST);
     cfg->aec_init          = false;
     cfg->se_init           = false;
@@ -329,7 +352,7 @@ void voice_init(esp_mqtt_client_handle_t client, const char *device_id)
     afe_config_free(cfg);
 
     xTaskCreatePinnedToCore(afe_feed_task,  "afe_feed",  8192, NULL, 5, NULL, 0);
-    xTaskCreatePinnedToCore(afe_fetch_task, "afe_fetch", 4096, NULL, 5, NULL, 1);
+    xTaskCreatePinnedToCore(afe_fetch_task, "afe_fetch", 8192, NULL, 5, NULL, 1);
     ESP_LOGI(TAG, "wake word detection started (device_id=%s)", s_device_id);
 }
 

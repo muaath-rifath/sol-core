@@ -159,8 +159,8 @@ func findAppBinary(buildDir string) (string, error) {
 }
 
 func findModelBinary(buildDir string) string {
-	// esp-sr places model.bin in the build directory when WakeNet is configured
-	p := filepath.Join(buildDir, "model.bin")
+	// esp-sr packs WakeNet and other SR models into build/srmodels/srmodels.bin
+	p := filepath.Join(buildDir, "srmodels", "srmodels.bin")
 	if _, err := os.Stat(p); err == nil {
 		return p
 	}
