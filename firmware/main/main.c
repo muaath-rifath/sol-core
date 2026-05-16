@@ -19,6 +19,7 @@
 #include "esp_crt_bundle.h"
 #include "runtime_config.h"
 #include "wifi.h"
+#include "voice.h"
 
 static const char *TAG = "main";
 
@@ -28,6 +29,7 @@ static char s_topic_state[128];
 static char s_topic_cmd[128];
 static char s_topic_ack[128];
 static char s_topic_ota[128];
+static char s_topic_voice[128];
 static char s_lwt_payload[160];
 static char s_device_id[RUNTIME_DEVICE_ID_MAX_LEN + 1];
 static char s_last_ota_request_id[80];
@@ -288,6 +290,10 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
     if (sub_id < 0) {
       ESP_LOGE(TAG, "Subscribe failed for %s", s_topic_cmd);
     }
+    sub_id = esp_mqtt_client_subscribe(s_mqtt_client, s_topic_voice, 1);
+    if (sub_id < 0) {
+      ESP_LOGE(TAG, "Subscribe failed for %s", s_topic_voice);
+    }
 
     publish_state(true);
     s_last_state_publish_tick = xTaskGetTickCount();
@@ -303,8 +309,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
       break;
     }
 
-    if ((int)strlen(s_topic_cmd) != event->topic_len ||
-        strncmp(event->topic, s_topic_cmd, event->topic_len) != 0) {
+    bool is_cmd   = (int)strlen(s_topic_cmd)   == event->topic_len &&
+                    strncmp(event->topic, s_topic_cmd,   event->topic_len) == 0;
+    bool is_voice = (int)strlen(s_topic_voice) == event->topic_len &&
+                    strncmp(event->topic, s_topic_voice, event->topic_len) == 0;
+    if (!is_cmd && !is_voice) {
       break;
     }
 
@@ -313,7 +322,11 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
       break;
     }
     memcpy(payload, event->data, event->data_len);
-    handle_command_json(payload);
+    if (is_cmd) {
+      handle_command_json(payload);
+    } else {
+      voice_handle_session(payload);
+    }
     free(payload);
     break;
   }
@@ -411,9 +424,10 @@ void app_main(void) {
 
   snprintf(s_topic_state, sizeof(s_topic_state), "sol/devices/%s/state",
            s_device_id);
-  snprintf(s_topic_cmd, sizeof(s_topic_cmd), "sol/devices/%s/cmd", s_device_id);
-  snprintf(s_topic_ack, sizeof(s_topic_ack), "sol/devices/%s/ack", s_device_id);
-  snprintf(s_topic_ota, sizeof(s_topic_ota), "sol/devices/%s/ota", s_device_id);
+  snprintf(s_topic_cmd,   sizeof(s_topic_cmd),   "sol/devices/%s/cmd",   s_device_id);
+  snprintf(s_topic_ack,   sizeof(s_topic_ack),   "sol/devices/%s/ack",   s_device_id);
+  snprintf(s_topic_ota,   sizeof(s_topic_ota),   "sol/devices/%s/ota",   s_device_id);
+  snprintf(s_topic_voice, sizeof(s_topic_voice), "sol/devices/%s/voice", s_device_id);
 
   snprintf(s_lwt_payload, sizeof(s_lwt_payload),
            "{\"deviceId\":\"%s\",\"name\":\"ESP32 LED "
@@ -468,6 +482,7 @@ void app_main(void) {
   // configured to do so. To be safe, we leak this memory for now as it's a
   // one-time allocation.
 
+  voice_init(s_mqtt_client, s_device_id);
 
   ESP_LOGI(TAG, "Device online, waiting for MQTT commands...");
 

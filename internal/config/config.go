@@ -48,6 +48,11 @@ type Config struct {
 	BrevoSenderEmail string
 	BrevoSenderName  string
 
+	// LiveKit — voice session management
+	LiveKitURL       string
+	LiveKitAPIKey    string
+	LiveKitAPISecret string
+
 	// FrontendURL is used to construct invite links in emails
 	FrontendURL string
 
@@ -82,6 +87,9 @@ func Load() (*Config, error) {
 		CohereAzureKey:         os.Getenv("COHERE_AZURE_KEY"),
 		CohereAzureDeployment:  envOrDefault("COHERE_AZURE_DEPLOYMENT", "embed-v4-0"),
 		CohereAPIVersion:       envOrDefault("COHERE_API_VERSION", "2024-05-01-preview"),
+		LiveKitURL:       envOrDefault("LIVEKIT_URL", "wss://uyir-72n9nb31.livekit.cloud"),
+		LiveKitAPIKey:    os.Getenv("LIVEKIT_API_KEY"),
+		LiveKitAPISecret: os.Getenv("LIVEKIT_API_SECRET"),
 		BrevoAPIKey:           os.Getenv("BREVO_API_KEY"),
 		BrevoSenderEmail:      envOrDefault("BREVO_SENDER_EMAIL", "noreply@sol.app"),
 		BrevoSenderName:       envOrDefault("BREVO_SENDER_NAME", "Sol"),

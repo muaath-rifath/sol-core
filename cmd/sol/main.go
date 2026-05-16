@@ -26,6 +26,7 @@ import (
 	"github.com/muaathrifath/sol-core/internal/platform"
 	"github.com/muaathrifath/sol-core/internal/room"
 	"github.com/muaathrifath/sol-core/internal/user"
+	"github.com/muaathrifath/sol-core/internal/voice"
 	"github.com/muaathrifath/sol-core/internal/ws"
 )
 
@@ -171,8 +172,19 @@ func main() {
 	// MCP Server
 	mcpServer := mcp.NewServer(deviceSvc, roomSvc)
 
+	// Voice service — LiveKit room/token creation triggered by ESP32 wake word.
+	voiceSvc := voice.NewService(voice.Config{
+		URL:       cfg.LiveKitURL,
+		APIKey:    cfg.LiveKitAPIKey,
+		APISecret: cfg.LiveKitAPISecret,
+	}, mqttClient)
+	if cfg.LiveKitAPIKey == "" || cfg.LiveKitAPISecret == "" {
+		slog.Warn("livekit credentials not set — voice sessions disabled")
+	}
+	voiceHandler := voice.NewHandler(voiceSvc)
+
 	// MQTT message handler
-	mqttHandler := mqtt.NewHandler(deviceSvc, hub)
+	mqttHandler := mqtt.NewHandler(deviceSvc, hub, voiceSvc)
 	mqttClient.SetMessageHandler(mqttHandler.Handle)
 
 	// WS command handler — routes device.command messages from browser clients.
@@ -204,6 +216,9 @@ func main() {
 	}
 	if err := mqttClient.Subscribe("sol/devices/+/ota", 1); err != nil {
 		slog.Error("failed to subscribe to device ota status", "error", err)
+	}
+	if err := mqttClient.Subscribe("sol/devices/+/wake", 1); err != nil {
+		slog.Error("failed to subscribe to device wake", "error", err)
 	}
 
 	// Routes
@@ -281,6 +296,11 @@ func main() {
 	mux.Handle("GET /api/v1/firmware/versions/{id}/download", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadByVersionID)))
 	mux.Handle("GET /api/v1/firmware/versions/{id}/presigned-url", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.PresignedURL)))
 	mux.Handle("GET /api/v1/firmware/versions/{id}/partition-table", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadPartitionTable)))
+	mux.Handle("GET /api/v1/firmware/versions/{id}/model", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadModel)))
+
+	// Voice session — ESP32 wake word triggers room creation via MQTT; this HTTP
+	// endpoint is a backup for testing and direct integration.
+	mux.HandleFunc("POST /api/v1/voice/session", voiceHandler.CreateSession)
 
 	// Public OTA firmware download (no auth)
 	mux.HandleFunc("GET /api/v1/ota/firmware/{id}", firmwareHandler.DownloadByVersionID)
