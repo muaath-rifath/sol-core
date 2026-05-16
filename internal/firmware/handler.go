@@ -195,18 +195,19 @@ func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var modelKey *string
 	model, modelHeader, err := r.FormFile("model")
-	if err == nil {
-		defer model.Close()
-		key, uploadErr := h.store.UploadVersioned(r.Context(), templateID, version, "model.bin", model, modelHeader.Size)
-		if uploadErr != nil {
-			slog.Error("upload model", "error", uploadErr)
-			http.Error(w, `{"error":"upload failed"}`, http.StatusInternalServerError)
-			return
-		}
-		modelKey = &key
+	if err != nil {
+		http.Error(w, `{"error":"model file is required (attach build/srmodels/srmodels.bin from the esp-sr build)"}`, http.StatusBadRequest)
+		return
 	}
+	defer model.Close()
+	uploadedModelKey, err := h.store.UploadVersioned(r.Context(), templateID, version, "model.bin", model, modelHeader.Size)
+	if err != nil {
+		slog.Error("upload model", "error", err)
+		http.Error(w, `{"error":"upload failed"}`, http.StatusInternalServerError)
+		return
+	}
+	modelKey := &uploadedModelKey
 
 	var sourceKey *string
 	source, sourceHeader, err := r.FormFile("source")

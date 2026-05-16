@@ -24,4 +24,12 @@ menu "Smart Home Demo Configuration"
         string "Device ID"
         default "esp32-led-001"
 
+    config VOICE_MIC_PEAK_LOG
+        bool "Log mic peak amplitude every ~2 s (audio debug)"
+        default n
+        help
+          When enabled, afe_feed_task prints the peak int16 sample value
+          from each ~2-second window. Useful for verifying the INMP441 mic
+          is producing audio before wake-word testing. Disable for production.
+
 endmenu
