@@ -69,20 +69,26 @@ func runBuild(payload BuildJobPayload, apiURL, srcDir string) {
 		return
 	}
 
-	// 3. Build
+	// 3. Resolve managed components (updates lock file and downloads any missing deps)
+	if err := execCommand(ctx, apiURL, payload.JobID, srcDir, "idf.py", "update-dependencies"); err != nil {
+		updateStatus(apiURL, payload.JobID, "failed", "", fmt.Sprintf("\nFailed to update dependencies: %v", err))
+		return
+	}
+
+	// 4. Build
 	if err := execCommand(ctx, apiURL, payload.JobID, srcDir, "idf.py", "build"); err != nil {
 		updateStatus(apiURL, payload.JobID, "failed", "", fmt.Sprintf("\nBuild failed: %v", err))
 		return
 	}
 
-	// 4. Ingest binaries
+	// 5. Ingest binaries
 	versionID, err := ingestBinaries(apiURL, payload.TemplateID, payload.TargetBoard, payload.JobID, srcDir)
 	if err != nil {
 		updateStatus(apiURL, payload.JobID, "failed", "", fmt.Sprintf("\nIngestion failed: %v", err))
 		return
 	}
 
-	// 5. Success!
+	// 6. Success!
 	updateStatus(apiURL, payload.JobID, "success", versionID, "\nBuild complete!")
 }
 
