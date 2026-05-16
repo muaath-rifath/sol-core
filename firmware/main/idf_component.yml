@@ -1,6 +1,6 @@
 dependencies:
   idf:
-    version: '>=5.4'
+    version: '>=5.3'
   espressif/mqtt: '*'
   espressif/cjson: '*'
   espressif/esp-sr: '^2.1.5'
