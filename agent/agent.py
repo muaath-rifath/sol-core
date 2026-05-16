@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
-from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli
-from livekit.agents.multimodal import MultimodalAgent
+from livekit.agents import Agent, AgentSession, JobContext, RoomInputOptions, WorkerOptions, cli
 from livekit.plugins import openai
 
 load_dotenv()
@@ -12,25 +11,34 @@ INSTRUCTIONS = (
 )
 
 
-async def entrypoint(ctx: JobContext):
-    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+class SolAgent(Agent):
+    def __init__(self):
+        super().__init__(instructions=INSTRUCTIONS)
 
-    model = openai.realtime.RealtimeModel.with_azure(
-        azure_deployment=os.environ["AZURE_DEPLOYMENT"],
-        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-        api_key=os.environ["AZURE_OPENAI_KEY"],
-        api_version=os.environ.get("AZURE_API_VERSION", "2025-04-01-preview"),
-        voice="alloy",
-        instructions=INSTRUCTIONS,
-        turn_detection=openai.realtime.ServerVadOptions(
-            threshold=0.5,
-            prefix_padding_ms=300,
-            silence_duration_ms=500,
-        ),
+
+async def entrypoint(ctx: JobContext):
+    await ctx.connect()
+
+    session = AgentSession(
+        llm=openai.realtime.RealtimeModel.with_azure(
+            azure_deployment=os.environ["AZURE_DEPLOYMENT"],
+            azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+            api_key=os.environ["AZURE_OPENAI_KEY"],
+            api_version=os.environ.get("AZURE_API_VERSION", "2025-04-01-preview"),
+            voice="alloy",
+            turn_detection=openai.realtime.ServerVadOptions(
+                threshold=0.5,
+                prefix_padding_ms=300,
+                silence_duration_ms=500,
+            ),
+        )
     )
 
-    agent = MultimodalAgent(model=model)
-    agent.start(ctx.room)
+    await session.start(
+        room=ctx.room,
+        agent=SolAgent(),
+        room_input_options=RoomInputOptions(),
+    )
 
 
 if __name__ == "__main__":
