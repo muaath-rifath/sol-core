@@ -147,12 +147,17 @@ static void afe_fetch_task(void *arg)
         if (r->wakeup_state != WAKENET_DETECTED) continue;
         if (s_state != VOICE_IDLE) continue;  /* debounce — already handling a session */
 
-        ESP_LOGI(TAG, "wake word detected");
+        ESP_LOGI(TAG, "\"Hi Joy\" wake word detected — notifying backend (device=%s)", s_device_id);
         s_state = VOICE_WAKE_SENT;
 
         char topic[128];
         snprintf(topic, sizeof(topic), "sol/devices/%s/wake", s_device_id);
-        esp_mqtt_client_publish(s_mqtt, topic, "{}", 2, 1, 0);
+        int pub_id = esp_mqtt_client_publish(s_mqtt, topic, "{}", 2, 1, 0);
+        if (pub_id >= 0) {
+            ESP_LOGI(TAG, "wake signal published to backend (msg_id=%d)", pub_id);
+        } else {
+            ESP_LOGE(TAG, "failed to publish wake signal — MQTT error");
+        }
     }
 }
 
@@ -335,6 +340,8 @@ void voice_handle_session(const char *payload)
         return;
     }
 
+    ESP_LOGI(TAG, "LiveKit token received from backend — parsing session credentials");
+
     cJSON *root = cJSON_Parse(payload);
     if (!root) {
         ESP_LOGW(TAG, "invalid voice session JSON");
@@ -364,6 +371,8 @@ void voice_handle_session(const char *payload)
     strncpy(sess->token,     jtoken->valuestring, sizeof(sess->token)      - 1);
     strncpy(sess->url,       jurl->valuestring,   sizeof(sess->url)        - 1);
     cJSON_Delete(root);
+
+    ESP_LOGI(TAG, "LiveKit token retrieved: room=%s url=%s", sess->room_name, sess->url);
 
     s_state = VOICE_ACTIVE;
     xTaskCreatePinnedToCore(livekit_task, "livekit", 32768, sess, 5, NULL, 1);

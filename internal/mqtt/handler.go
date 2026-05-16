@@ -92,6 +92,7 @@ func (h *Handler) Handle(topic string, payload []byte) {
 		}
 
 	case "wake":
+		slog.Info("wake word MQTT message received", "device_id", deviceID, "topic", topic)
 		if h.voiceSvc != nil {
 			h.voiceSvc.HandleWake(ctx, deviceID)
 		}

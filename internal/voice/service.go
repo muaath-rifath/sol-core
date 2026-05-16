@@ -57,6 +57,7 @@ func NewService(cfg Config, mqtt mqttPublisher) *Service {
 func (s *Service) CreateSession(ctx context.Context, deviceID string) (*SessionInfo, error) {
 	roomName := fmt.Sprintf("voice-%s-%s", deviceID, uuid.New().String()[:8])
 
+	slog.Info("creating livekit room", "device_id", deviceID, "room", roomName)
 	_, err := s.roomClient.CreateRoom(ctx, &livekit.CreateRoomRequest{
 		Name:         roomName,
 		EmptyTimeout: roomEmptyClose,
@@ -64,22 +65,29 @@ func (s *Service) CreateSession(ctx context.Context, deviceID string) (*SessionI
 	if err != nil {
 		return nil, fmt.Errorf("create livekit room: %w", err)
 	}
+	slog.Info("livekit room created", "room", roomName)
 
-	token, err := s.generateToken(roomName, "esp32-"+deviceID)
+	identity := "esp32-" + deviceID
+	slog.Info("generating livekit token", "room", roomName, "identity", identity, "ttl", tokenTTL)
+	token, err := s.generateToken(roomName, identity)
 	if err != nil {
 		return nil, fmt.Errorf("generate token: %w", err)
 	}
+	slog.Info("livekit token generated", "room", roomName, "identity", identity)
 
 	// Dispatch the voice agent — non-fatal if it fails (agent may auto-dispatch)
+	slog.Info("dispatching voice agent", "room", roomName, "agent", agentName)
 	_, dispatchErr := s.agentClient.CreateDispatch(ctx, &livekit.CreateAgentDispatchRequest{
 		AgentName: agentName,
 		Room:      roomName,
 	})
 	if dispatchErr != nil {
 		slog.Warn("voice agent dispatch failed — agent may auto-join", "room", roomName, "error", dispatchErr)
+	} else {
+		slog.Info("voice agent dispatched", "room", roomName, "agent", agentName)
 	}
 
-	slog.Info("voice session created", "device_id", deviceID, "room", roomName)
+	slog.Info("voice session ready", "device_id", deviceID, "room", roomName, "url", s.cfg.URL)
 
 	return &SessionInfo{
 		RoomName: roomName,
@@ -91,6 +99,8 @@ func (s *Service) CreateSession(ctx context.Context, deviceID string) (*SessionI
 // HandleWake is called when MQTT receives sol/devices/{deviceId}/wake.
 // It creates a session and publishes the token back to the device.
 func (s *Service) HandleWake(ctx context.Context, deviceID string) {
+	slog.Info("wake word trigger received from device", "device_id", deviceID)
+
 	session, err := s.CreateSession(ctx, deviceID)
 	if err != nil {
 		slog.Error("voice session creation failed", "device_id", deviceID, "error", err)
@@ -98,9 +108,12 @@ func (s *Service) HandleWake(ctx context.Context, deviceID string) {
 	}
 
 	topic := fmt.Sprintf("sol/devices/%s/voice", deviceID)
+	slog.Info("publishing livekit token to device", "device_id", deviceID, "topic", topic, "room", session.RoomName)
 	if err := s.mqtt.Publish(topic, session); err != nil {
 		slog.Error("failed to publish voice token", "device_id", deviceID, "error", err)
+		return
 	}
+	slog.Info("livekit token published to device", "device_id", deviceID, "topic", topic)
 }
 
 func (s *Service) generateToken(roomName, identity string) (string, error) {
