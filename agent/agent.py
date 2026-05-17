@@ -30,7 +30,9 @@ class SolAgent(Agent):
 async def entrypoint(ctx: JobContext):
     logger.info("connecting to room %s", ctx.room.name)
     await ctx.connect()
-    logger.info("connected to room, starting agent session")
+    logger.info("waiting for participant")
+    await ctx.wait_for_participant()
+    logger.info("participant joined, starting agent session")
 
     session = AgentSession(
         llm=openai.realtime.RealtimeModel.with_azure(
