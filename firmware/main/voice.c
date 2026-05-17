@@ -187,9 +187,16 @@ static void afe_fetch_task(void *arg)
 
 /* ── LiveKit room state callback ─────────────────────────────────────────── */
 
+static livekit_room_handle_t s_room = NULL;
+
 static void on_room_state(livekit_connection_state_t state, void *ctx)
 {
     ESP_LOGI(TAG, "livekit state: %s", livekit_connection_state_str(state));
+    if (state == LIVEKIT_CONNECTION_STATE_FAILED) {
+        livekit_failure_reason_t reason = livekit_room_get_failure_reason(s_room);
+        if (reason != LIVEKIT_FAILURE_REASON_NONE)
+            ESP_LOGE(TAG, "livekit failure reason: %s", livekit_failure_reason_str(reason));
+    }
     if ((state == LIVEKIT_CONNECTION_STATE_DISCONNECTED ||
          state == LIVEKIT_CONNECTION_STATE_FAILED) && s_lk_eg) {
         xEventGroupSetBits(s_lk_eg, LK_DONE_BIT);
@@ -201,7 +208,7 @@ static void on_room_state(livekit_connection_state_t state, void *ctx)
 static void livekit_task(void *arg)
 {
     livekit_session_t *sess = (livekit_session_t *)arg;
-    livekit_room_handle_t room = NULL;
+    s_room = NULL;
     i2s_chan_handle_t rx = NULL, tx = NULL;
     esp_capture_sink_handle_t capturer = NULL;
     av_render_handle_t renderer = NULL;
@@ -253,17 +260,26 @@ static void livekit_task(void *arg)
     const audio_codec_data_if_t *spk_if = audio_codec_new_i2s_data(&spk_i2s);
     esp_codec_dev_cfg_t play_cfg = { .dev_type=ESP_CODEC_DEV_TYPE_OUT, .codec_if=NULL, .data_if=spk_if };
     esp_codec_dev_handle_t play = esp_codec_dev_new(&play_cfg);
+    if (!rec || !play) {
+        ESP_LOGE(TAG, "codec device init failed (rec=%p play=%p)", rec, play);
+        goto cleanup;
+    }
     esp_codec_dev_set_out_vol(play, 70);
 
     /* esp_capture: mic → LiveKit (Opus, 16 kHz mono) */
     esp_capture_audio_dev_src_cfg_t src_cfg = { .record_handle = rec };
     esp_capture_audio_src_if_t *audio_src = esp_capture_new_audio_dev_src(&src_cfg);
+    if (!audio_src) { ESP_LOGE(TAG, "audio src init failed"); goto cleanup; }
     esp_capture_cfg_t cap_cfg = { .sync_mode=ESP_CAPTURE_SYNC_MODE_AUDIO, .audio_src=audio_src };
-    if (esp_capture_open(&cap_cfg, &capturer) != ESP_OK || !capturer) goto cleanup;
+    if (esp_capture_open(&cap_cfg, &capturer) != ESP_OK || !capturer) {
+        ESP_LOGE(TAG, "esp_capture_open failed");
+        goto cleanup;
+    }
 
     /* av_render: LiveKit → speaker */
     i2s_render_cfg_t rnd_i2s = { .play_handle = play };
     audio_render_handle_t audio_rnd = av_render_alloc_i2s_render(&rnd_i2s);
+    if (!audio_rnd) { ESP_LOGE(TAG, "av_render_alloc_i2s_render failed"); goto cleanup; }
     av_render_cfg_t rnd_cfg = {
         .audio_render           = audio_rnd,
         .audio_raw_fifo_size    = 8 * 4096,
@@ -271,7 +287,7 @@ static void livekit_task(void *arg)
         .allow_drop_data        = false,
     };
     renderer = av_render_open(&rnd_cfg);
-    if (!renderer) goto cleanup;
+    if (!renderer) { ESP_LOGE(TAG, "av_render_open failed"); goto cleanup; }
     av_render_audio_frame_info_t fi = { .sample_rate=SAMPLE_RATE, .channel=2, .bits_per_sample=16 };
     av_render_set_fixed_frame_info(renderer, &fi);
 
@@ -294,8 +310,8 @@ static void livekit_task(void *arg)
         .on_state_changed = on_room_state,
     };
 
-    if (livekit_room_create(&room, &opts) != ESP_OK ||
-        livekit_room_connect(room, sess->url, sess->token) != ESP_OK) {
+    if (livekit_room_create(&s_room, &opts) != LIVEKIT_ERR_NONE ||
+        livekit_room_connect(s_room, sess->url, sess->token) != LIVEKIT_ERR_NONE) {
         ESP_LOGE(TAG, "livekit connect failed");
         xEventGroupSetBits(s_lk_eg, LK_DONE_BIT);
     } else {
@@ -306,6 +322,11 @@ static void livekit_task(void *arg)
     }
 
 cleanup:
+    if (s_room) {
+        livekit_room_close(s_room);
+        livekit_room_destroy(s_room);
+        s_room = NULL;
+    }
     if (renderer) av_render_close(renderer);
     if (capturer) esp_capture_close(capturer);
     if (rx) { i2s_channel_disable(rx); i2s_del_channel(rx); }
