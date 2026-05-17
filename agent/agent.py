@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from livekit.agents import Agent, AgentSession, JobContext, RoomInputOptions, WorkerOptions, cli
 from livekit.plugins import openai
+from livekit.plugins.openai.realtime.realtime_model import TurnDetection
 
 load_dotenv()
 
@@ -26,7 +27,8 @@ async def entrypoint(ctx: JobContext):
             api_key=os.environ["AZURE_OPENAI_KEY"],
             api_version=os.environ.get("AZURE_API_VERSION", "2025-04-01-preview"),
             voice="alloy",
-            turn_detection=openai.realtime.ServerVadOptions(
+            turn_detection=TurnDetection(
+                type="server_vad",
                 threshold=0.5,
                 prefix_padding_ms=300,
                 silence_duration_ms=500,
