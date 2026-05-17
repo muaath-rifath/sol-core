@@ -192,11 +192,9 @@ static livekit_room_handle_t s_room = NULL;
 static void on_room_state(livekit_connection_state_t state, void *ctx)
 {
     ESP_LOGI(TAG, "livekit state: %s", livekit_connection_state_str(state));
-    if (state == LIVEKIT_CONNECTION_STATE_FAILED) {
-        livekit_failure_reason_t reason = livekit_room_get_failure_reason(s_room);
-        if (reason != LIVEKIT_FAILURE_REASON_NONE)
-            ESP_LOGE(TAG, "livekit failure reason: %s", livekit_failure_reason_str(reason));
-    }
+    livekit_failure_reason_t reason = livekit_room_get_failure_reason(s_room);
+    if (reason != LIVEKIT_FAILURE_REASON_NONE)
+        ESP_LOGE(TAG, "livekit failure reason: %s", livekit_failure_reason_str(reason));
     if ((state == LIVEKIT_CONNECTION_STATE_DISCONNECTED ||
          state == LIVEKIT_CONNECTION_STATE_FAILED) && s_lk_eg) {
         xEventGroupSetBits(s_lk_eg, LK_DONE_BIT);
