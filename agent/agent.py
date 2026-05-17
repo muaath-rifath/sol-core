@@ -1,8 +1,10 @@
+import asyncio
 import logging
 import os
 
 import aiohttp
 from dotenv import load_dotenv
+from livekit import api as lk_api
 from livekit.agents import Agent, AgentSession, JobContext, WorkerOptions, cli, function_tool
 from livekit.agents.voice.room_io import RoomOptions
 from livekit.plugins import openai
@@ -13,6 +15,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 SOL_API_URL = os.environ.get("SOL_API_URL", "http://sol-core:8080")
+INACTIVITY_TIMEOUT = 60  # seconds of silence before ending the session
 
 INSTRUCTIONS = (
     "You are Sol, a helpful smart home AI assistant. "
@@ -25,7 +28,6 @@ INSTRUCTIONS = (
 
 def _device_id_from_room(room_name: str) -> str:
     # room name format: voice-{device_uuid}-{8_char_suffix}
-    # e.g. voice-2094a9e6-8287-4ba7-b0ff-48c6d070d778-0a34217d
     return room_name[6:-9]  # strip "voice-" prefix and "-{8chars}" suffix
 
 
@@ -105,6 +107,48 @@ async def entrypoint(ctx: JobContext):
         room_options=RoomOptions(),
     )
     logger.info("agent session started")
+
+    # Track last user speech time for inactivity detection.
+    last_activity = asyncio.get_event_loop().time()
+
+    def _on_user_speech(*args):
+        nonlocal last_activity
+        last_activity = asyncio.get_event_loop().time()
+
+    session.on("user_started_speaking", _on_user_speech)
+
+    # Inactivity watchdog — polls every 10 s.
+    while True:
+        await asyncio.sleep(10)
+        elapsed = asyncio.get_event_loop().time() - last_activity
+        if elapsed >= INACTIVITY_TIMEOUT:
+            logger.info("inactivity timeout (%.0fs) — ending session", elapsed)
+            break
+
+    # Say goodbye, wait for speech to finish, then delete the room so the
+    # ESP32 receives a DISCONNECTED event and returns to wake-word mode.
+    goodbye_done = asyncio.Event()
+    session.once("agent_stopped_speaking", lambda *_: goodbye_done.set())
+    session.generate_reply(
+        instructions="The user has been inactive. Say a brief goodbye — one short sentence."
+    )
+    try:
+        await asyncio.wait_for(goodbye_done.wait(), timeout=10)
+    except asyncio.TimeoutError:
+        pass
+
+    lk = lk_api.LiveKitAPI(
+        url=os.environ["LIVEKIT_URL"],
+        api_key=os.environ["LIVEKIT_API_KEY"],
+        api_secret=os.environ["LIVEKIT_API_SECRET"],
+    )
+    try:
+        await lk.room.delete_room(lk_api.DeleteRoomRequest(room=ctx.room.name))
+        logger.info("room deleted: %s", ctx.room.name)
+    except Exception as e:
+        logger.warning("failed to delete room: %s", e)
+    finally:
+        await lk.aclose()
 
 
 if __name__ == "__main__":
