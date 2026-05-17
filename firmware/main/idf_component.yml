@@ -3,5 +3,5 @@ dependencies:
     version: '>=5.3'
   espressif/mqtt: '*'
   espressif/cjson: '*'
-  espressif/esp-sr: '2.4.4'
+  espressif/esp-sr: '^2.1.5'
   livekit/livekit: '0.3.7'
