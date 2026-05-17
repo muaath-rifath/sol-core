@@ -296,6 +296,7 @@ func main() {
 	mux.Handle("GET /api/v1/firmware/targets", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.ListTargets)))
 	mux.Handle("GET /api/v1/firmware/versions/{id}/download", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadByVersionID)))
 	mux.Handle("GET /api/v1/firmware/versions/{id}/presigned-url", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.PresignedURL)))
+	mux.Handle("GET /api/v1/firmware/versions/{id}/bootloader", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadBootloader)))
 	mux.Handle("GET /api/v1/firmware/versions/{id}/partition-table", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadPartitionTable)))
 	mux.Handle("GET /api/v1/firmware/versions/{id}/model", authMiddleware.Wrap(http.HandlerFunc(firmwareHandler.DownloadModel)))
 
