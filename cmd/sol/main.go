@@ -182,7 +182,7 @@ func main() {
 	if cfg.LiveKitAPIKey == "" || cfg.LiveKitAPISecret == "" {
 		slog.Warn("livekit credentials not set — voice sessions disabled")
 	}
-	voiceHandler := voice.NewHandler(voiceSvc)
+	voiceHandler := voice.NewHandler(voiceSvc, chatTools, pgPool)
 
 	// MQTT message handler
 	mqttHandler := mqtt.NewHandler(deviceSvc, hub, voiceSvc)
@@ -312,6 +312,7 @@ func main() {
 
 
 	// Internal build routes (for the worker)
+	mux.HandleFunc("POST /api/internal/voice/tools", voiceHandler.ToolDispatch)
 	mux.HandleFunc("PATCH /api/internal/firmware/builds/{id}", firmwareHandler.UpdateBuildStatus)
 	mux.HandleFunc("POST /api/internal/firmware/builds/{id}/logs", firmwareHandler.AppendBuildLogs)
 
