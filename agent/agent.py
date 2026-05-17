@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
-from livekit.agents import Agent, AgentSession, JobContext, RoomInputOptions, WorkerOptions, cli
+from livekit.agents import Agent, AgentSession, JobContext, WorkerOptions, cli
+from livekit.agents.voice.room_io import RoomOptions
 from livekit.plugins import openai
 from livekit.plugins.openai.realtime.realtime_model import TurnDetection
 
@@ -16,6 +17,11 @@ class SolAgent(Agent):
     def __init__(self):
         super().__init__(instructions=INSTRUCTIONS)
 
+    async def on_enter(self):
+        self.session.generate_reply(
+            instructions="Greet the user briefly as Sol, their smart home assistant."
+        )
+
 
 async def entrypoint(ctx: JobContext):
     await ctx.connect()
@@ -25,7 +31,6 @@ async def entrypoint(ctx: JobContext):
             azure_deployment=os.environ["AZURE_DEPLOYMENT"],
             azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
             api_key=os.environ["AZURE_OPENAI_KEY"],
-            api_version=os.environ.get("AZURE_API_VERSION", "2025-04-01-preview"),
             voice="alloy",
             turn_detection=TurnDetection(
                 type="server_vad",
@@ -39,7 +44,7 @@ async def entrypoint(ctx: JobContext):
     await session.start(
         room=ctx.room,
         agent=SolAgent(),
-        room_input_options=RoomInputOptions(),
+        room_options=RoomOptions(),
     )
 
 
