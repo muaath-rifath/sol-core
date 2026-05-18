@@ -13,7 +13,7 @@ import (
 	"github.com/muaathrifath/sol-core/internal/user"
 )
 
-const systemInstructions = "You are Sol, a smart home AI assistant. " +
+const systemInstructions = "You are Joy, a smart home AI assistant. " +
 	"For device control requests, with NO text before tool calls: (1) call discover_devices; " +
 	"(2) call check_device_online on the chosen appliance; " +
 	"(3) call get_device_state to see the current state; " +
