@@ -68,6 +68,36 @@ func (h *Handler) ToolDispatch(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(result))
 }
 
+// SessionContext handles GET /api/internal/voice/context?device_id=<id>.
+// Called by the Python voice agent at session start to learn the room name.
+func (h *Handler) SessionContext(w http.ResponseWriter, r *http.Request) {
+	deviceID := r.URL.Query().Get("device_id")
+	if deviceID == "" {
+		http.Error(w, `{"error":"device_id required"}`, http.StatusBadRequest)
+		return
+	}
+
+	var roomName, homeName string
+	err := h.pool.QueryRow(r.Context(), `
+		SELECT r.name, ho.name
+		FROM devices d
+		JOIN rooms r ON r.id = d.room_id
+		JOIN homes ho ON ho.id = r.home_id
+		WHERE d.id = $1
+		LIMIT 1`, deviceID).Scan(&roomName, &homeName)
+	if err != nil {
+		slog.Warn("voice session context: device not found", "device_id", deviceID, "error", err)
+		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"room_name": roomName,
+		"home_name": homeName,
+	})
+}
+
 // CreateSession handles POST /api/v1/voice/session.
 // Called by the ESP32 over HTTPS when the "Joy" wake word fires.
 // Body: {"device_id": "<id>"}

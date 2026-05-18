@@ -17,13 +17,40 @@ logger = logging.getLogger(__name__)
 SOL_API_URL = os.environ.get("SOL_API_URL", "http://sol-core:8080")
 INACTIVITY_TIMEOUT = 60  # seconds of silence before ending the session
 
-INSTRUCTIONS = (
+_BASE_INSTRUCTIONS = (
     "You are Sol, a helpful smart home AI assistant. "
     "Help the user control their home, answer questions, and manage their devices. "
     "When the user asks to control a device: first call discover_devices to find it, "
     "then check_device_online, then control_device. "
     "Always confirm what you did after controlling a device."
 )
+
+
+async def _fetch_session_context(device_id: str) -> dict:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"{SOL_API_URL}/api/internal/voice/context",
+                params={"device_id": device_id},
+            ) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+    except Exception as e:
+        logger.warning("failed to fetch session context: %s", e)
+    return {}
+
+
+def _build_instructions(room_name: str, home_name: str) -> str:
+    location = ""
+    if room_name:
+        location = f" You are the Sol device installed in the {room_name}"
+        if home_name:
+            location += f" at {home_name}"
+        location += (
+            ". All device discovery and control is already scoped to this room,"
+            " so never ask the user which room they mean."
+        )
+    return _BASE_INSTRUCTIONS + location
 
 
 def _device_id_from_room(room_name: str) -> str:
@@ -41,8 +68,8 @@ async def _call_tool(device_id: str, tool: str, arguments: str) -> str:
 
 
 class SolAgent(Agent):
-    def __init__(self, device_id: str):
-        super().__init__(instructions=INSTRUCTIONS)
+    def __init__(self, device_id: str, instructions: str):
+        super().__init__(instructions=instructions)
         self._device_id = device_id
 
     async def on_enter(self):
@@ -85,6 +112,11 @@ async def entrypoint(ctx: JobContext):
     device_id = _device_id_from_room(ctx.room.name)
     logger.info("device_id extracted from room: %s", device_id)
 
+    ctx_data = await _fetch_session_context(device_id)
+    room_name = ctx_data.get("room_name", "")
+    home_name = ctx_data.get("home_name", "")
+    logger.info("session context: room=%s home=%s", room_name, home_name)
+
     session = AgentSession(
         llm=openai.realtime.RealtimeModel.with_azure(
             azure_deployment=os.environ["AZURE_DEPLOYMENT"],
@@ -103,7 +135,7 @@ async def entrypoint(ctx: JobContext):
 
     await session.start(
         room=ctx.room,
-        agent=SolAgent(device_id=device_id),
+        agent=SolAgent(device_id=device_id, instructions=_build_instructions(room_name, home_name)),
         room_options=RoomOptions(),
     )
     logger.info("agent session started")
