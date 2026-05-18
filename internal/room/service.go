@@ -161,3 +161,21 @@ func (s *Service) ListActivityLogs(ctx context.Context, id, homeID string, limit
 	}
 	return logs, nil
 }
+
+func (s *Service) ListActivityLogsPaginated(ctx context.Context, id, homeID, cursor string, limit int) (*CursorResponse[ActivityLog], error) {
+	if _, err := s.Get(ctx, id, homeID); err != nil {
+		return nil, err
+	}
+	limit = normalizeLimit(limit)
+	cursorTime, _, err := decodeCursor(cursor)
+	if err != nil {
+		return nil, err
+	}
+	logs, err := s.repo.ListActivityLogsPaginated(ctx, id, cursorTime, limit+1)
+	if err != nil {
+		return nil, err
+	}
+	return buildCursorResponse(logs, limit, func(l ActivityLog) (time.Time, string) {
+		return l.Timestamp, ""
+	}), nil
+}

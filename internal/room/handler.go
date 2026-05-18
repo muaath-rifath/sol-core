@@ -247,12 +247,13 @@ func (h *Handler) ListActivity(w http.ResponseWriter, r *http.Request) {
 	if limit <= 0 {
 		limit = 20
 	}
+	cursor := r.URL.Query().Get("cursor")
 
-	logs, err := h.svc.ListActivityLogs(r.Context(), roomID, homeID, limit)
+	resp, err := h.svc.ListActivityLogsPaginated(r.Context(), roomID, homeID, cursor, limit)
 	if err != nil {
 		slog.Error("list activity logs", "error", err)
 		writeError(w, http.StatusInternalServerError, "internal")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"data": logs})
+	writeJSON(w, http.StatusOK, resp)
 }
