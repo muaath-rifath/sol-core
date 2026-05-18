@@ -313,6 +313,7 @@ func main() {
 
 	// Internal build routes (for the worker)
 	mux.HandleFunc("POST /api/internal/voice/tools", voiceHandler.ToolDispatch)
+	mux.HandleFunc("GET /api/internal/voice/context", voiceHandler.SessionContext)
 	mux.HandleFunc("PATCH /api/internal/firmware/builds/{id}", firmwareHandler.UpdateBuildStatus)
 	mux.HandleFunc("POST /api/internal/firmware/builds/{id}/logs", firmwareHandler.AppendBuildLogs)
 
