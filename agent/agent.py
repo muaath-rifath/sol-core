@@ -111,11 +111,12 @@ async def entrypoint(ctx: JobContext):
     # Track last user speech time for inactivity detection.
     last_activity = asyncio.get_event_loop().time()
 
-    def _on_user_speech(*args):
+    def _on_user_state_changed(event):
         nonlocal last_activity
-        last_activity = asyncio.get_event_loop().time()
+        if event.new_state == "speaking":
+            last_activity = asyncio.get_event_loop().time()
 
-    session.on("user_started_speaking", _on_user_speech)
+    session.on("user_state_changed", _on_user_state_changed)
 
     # Inactivity watchdog — polls every 10 s.
     while True:
