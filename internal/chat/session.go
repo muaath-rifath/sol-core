@@ -168,7 +168,11 @@ func (s *Session) runCompletions(ctx context.Context, client openai.Client) erro
 
 		for _, tc := range toolCalls {
 			slog.Info("chat: tool call", "tool", tc.Function.Name, "home", s.homeID, "user", s.u.ID)
-			result := s.tools.Dispatch(ctx, tc.Function.Name, tc.Function.Arguments, s.u, s.homeID)
+			result := s.tools.Dispatch(ctx, tc.Function.Name, tc.Function.Arguments, s.u, ToolContext{
+				HomeID:    s.homeID,
+				ActorType: "user",
+				ActorID:   s.u.ID,
+			})
 			history = append(history, openai.ToolMessage(result, tc.ID))
 		}
 	}

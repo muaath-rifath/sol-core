@@ -7,12 +7,13 @@ import (
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/muaathrifath/sol-core/internal/chat"
 	"github.com/muaathrifath/sol-core/internal/user"
 )
 
 // ToolDispatcher is satisfied by *chat.Tools.
 type ToolDispatcher interface {
-	Dispatch(ctx context.Context, name, arguments string, u *user.User, homeID string) string
+	Dispatch(ctx context.Context, name, arguments string, u *user.User, tc chat.ToolContext) string
 }
 
 type Handler struct {
@@ -39,16 +40,16 @@ func (h *Handler) ToolDispatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve home_id and owner user_id from the device.
-	var homeID, userID, userName, userEmail string
+	// Resolve home_id, room_id, and owner context from the device.
+	var homeID, roomID, userID, userName, userEmail string
 	err := h.pool.QueryRow(r.Context(), `
-		SELECT r.home_id, u.id, u.name, u.email
+		SELECT r.home_id, r.id, u.id, u.name, u.email
 		FROM devices d
 		JOIN rooms r ON r.id = d.room_id
 		JOIN home_members hm ON hm.home_id = r.home_id AND hm.role = 'owner'
 		JOIN users u ON u.id = hm.user_id
 		WHERE d.id = $1
-		LIMIT 1`, req.DeviceID).Scan(&homeID, &userID, &userName, &userEmail)
+		LIMIT 1`, req.DeviceID).Scan(&homeID, &roomID, &userID, &userName, &userEmail)
 	if err != nil {
 		slog.Warn("voice tool dispatch: device context not found", "device_id", req.DeviceID, "error", err)
 		http.Error(w, `{"error":"device not found"}`, http.StatusNotFound)
@@ -56,7 +57,12 @@ func (h *Handler) ToolDispatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	u := &user.User{ID: userID, Name: userName, Email: userEmail}
-	result := h.tools.Dispatch(r.Context(), req.Tool, req.Arguments, u, homeID)
+	result := h.tools.Dispatch(r.Context(), req.Tool, req.Arguments, u, chat.ToolContext{
+		HomeID:    homeID,
+		RoomID:    roomID,
+		ActorType: "esp32",
+		ActorID:   req.DeviceID,
+	})
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(result))
