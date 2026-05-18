@@ -18,7 +18,7 @@ SOL_API_URL = os.environ.get("SOL_API_URL", "http://sol-core:8080")
 INACTIVITY_TIMEOUT = 60  # seconds of silence before ending the session
 
 _BASE_INSTRUCTIONS = (
-    "You are Sol, a helpful smart home AI assistant. "
+    "You are Joy, a helpful smart home AI assistant. "
     "Help the user control their home, answer questions, and manage their devices. "
     "When the user asks to control a device: first call discover_devices to find it, "
     "then check_device_online, then control_device. "
@@ -43,7 +43,7 @@ async def _fetch_session_context(device_id: str) -> dict:
 def _build_instructions(room_name: str, home_name: str) -> str:
     location = ""
     if room_name:
-        location = f" You are the Sol device installed in the {room_name}"
+        location = f" You are the Joy device installed in the {room_name}"
         if home_name:
             location += f" at {home_name}"
         location += (
@@ -67,14 +67,14 @@ async def _call_tool(device_id: str, tool: str, arguments: str) -> str:
             return await resp.text()
 
 
-class SolAgent(Agent):
+class JoyAgent(Agent):
     def __init__(self, device_id: str, instructions: str):
         super().__init__(instructions=instructions)
         self._device_id = device_id
 
     async def on_enter(self):
         self.session.generate_reply(
-            instructions="Greet the user briefly as Sol, their smart home assistant."
+            instructions="Greet the user briefly as Joy, their smart home assistant."
         )
 
     @function_tool
@@ -135,7 +135,7 @@ async def entrypoint(ctx: JobContext):
 
     await session.start(
         room=ctx.room,
-        agent=SolAgent(device_id=device_id, instructions=_build_instructions(room_name, home_name)),
+        agent=JoyAgent(device_id=device_id, instructions=_build_instructions(room_name, home_name)),
         room_options=RoomOptions(),
     )
     logger.info("agent session started")
@@ -185,4 +185,4 @@ async def entrypoint(ctx: JobContext):
 
 
 if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, agent_name="joy-voice-agent"))

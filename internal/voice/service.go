@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	agentName      = "sol-voice-agent"
+	agentName      = "joy-voice-agent"
 	tokenTTL       = 10 * time.Minute
 	roomEmptyClose = 120 // seconds — room auto-closes after 2 min with no participants
 )
