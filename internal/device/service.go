@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -97,6 +98,12 @@ type AutomationEvaluator interface {
 	Evaluate(ctx context.Context, triggerType string, payload map[string]any) error
 }
 
+type pendingActorEntry struct {
+	actorType  string
+	actorLabel string
+	setAt      time.Time
+}
+
 type Service struct {
 	repo              *Repository
 	otaRepo           *OTAAttemptRepository
@@ -109,6 +116,7 @@ type Service struct {
 	onlineFreshness   time.Duration
 	otaAttemptTimeout time.Duration
 	ackRegistry       *commandAckRegistry
+	pendingActors     sync.Map // key: applianceID (string), value: pendingActorEntry
 }
 
 func NewService(repo *Repository, otaRepo *OTAAttemptRepository, roomSvc *room.Service, mqttClient *mqtt.Client, hub *ws.Hub, onlineFreshness time.Duration, otaAttemptTimeout time.Duration) *Service {
@@ -349,10 +357,64 @@ func (s *Service) SendCommandForUser(ctx context.Context, req WSCommandRequest) 
 	if err := s.GateCommand(ctx, req.HomeID, req.DeviceID, req.Params); err != nil {
 		return err
 	}
+	// Record actor so HandleStateUpdate can attribute the resulting state change.
+	if u := user.FromContext(ctx); u != nil {
+		if channel, ok := extractChannel(req.Params); ok {
+			if apps, err := s.repo.ListAppliancesByDevice(ctx, req.DeviceID); err == nil {
+				for _, app := range apps {
+					if app.Channel != nil && *app.Channel == channel {
+						s.SetPendingActor(app.ID, "user", u.Name)
+						break
+					}
+				}
+			}
+		}
+	}
 	return s.SendCommand(ctx, Command{
 		DeviceID: req.DeviceID,
 		Action:   req.Action,
 		Params:   req.Params,
+	})
+}
+
+// SetPendingActor stores actor attribution for the next state-update log entry
+// for the given appliance. The entry expires after 5 seconds.
+func (s *Service) SetPendingActor(applianceID, actorType, actorLabel string) {
+	s.pendingActors.Store(applianceID, pendingActorEntry{
+		actorType:  actorType,
+		actorLabel: actorLabel,
+		setAt:      time.Now(),
+	})
+}
+
+func (s *Service) logApplianceStateChange(ctx context.Context, app *Appliance, roomID, deviceName string, isOn bool) {
+	if s.roomSvc == nil || roomID == "" {
+		return
+	}
+	action := "turned off"
+	badge := "Off"
+	badgeColor := "bg-surface-variant text-on-surface-variant"
+	if isOn {
+		action = "turned on"
+		badge = "On"
+		badgeColor = "bg-tertiary-fixed text-on-tertiary-fixed"
+	}
+
+	description := fmt.Sprintf("Triggered by %s", deviceName)
+	if v, ok := s.pendingActors.LoadAndDelete(app.ID); ok {
+		entry := v.(pendingActorEntry)
+		if time.Since(entry.setAt) < 5*time.Second {
+			description = fmt.Sprintf("By %s", entry.actorLabel)
+		}
+	}
+
+	_ = s.roomSvc.InsertActivityLog(ctx, &room.ActivityLog{
+		RoomID:      roomID,
+		Timestamp:   time.Now(),
+		Title:       fmt.Sprintf("%s %s", app.Name, action),
+		Description: description,
+		BadgeText:   badge,
+		BadgeColor:  badgeColor,
 	})
 }
 
@@ -916,6 +978,7 @@ func (s *Service) HandleStateUpdate(ctx context.Context, deviceID string, state 
 								"appliance_id": app.ID,
 								"state":        app.State,
 							})
+							s.logApplianceStateChange(ctx, &app, d.RoomID, d.Name, isItOn)
 						}
 					}
 				}

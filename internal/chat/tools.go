@@ -284,6 +284,15 @@ func (t *Tools) controlDevice(ctx context.Context, u *user.User, tc ToolContext,
 
 	stateBefore := appliance.State
 
+	// Register actor attribution before sending so HandleStateUpdate can label the log.
+	actorLabel := u.Name
+	if tc.ActorType == "esp32" {
+		if dev, devErr := t.deviceSvc.Get(ctx, tc.ActorID); devErr == nil {
+			actorLabel = dev.Name + " (voice)"
+		}
+	}
+	t.deviceSvc.SetPendingActor(appliance.ID, tc.ActorType, actorLabel)
+
 	cmd := device.Command{
 		DeviceID: appliance.DeviceID,
 		Action:   action,
