@@ -202,3 +202,29 @@ func (r *Repository) ListActivityLogs(ctx context.Context, roomID string, limit 
 	}
 	return logs, nil
 }
+
+func (r *Repository) ListActivityLogsPaginated(ctx context.Context, roomID string, cursorTime *time.Time, limit int) ([]ActivityLog, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT room_id, timestamp, title, description, badge_text, badge_color
+		 FROM room_activity_logs
+		 WHERE room_id = $1
+		   AND ($2::timestamptz IS NULL OR timestamp < $2)
+		 ORDER BY timestamp DESC
+		 LIMIT $3`,
+		roomID, cursorTime, limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list activity logs paginated: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []ActivityLog
+	for rows.Next() {
+		var log ActivityLog
+		if err := rows.Scan(&log.RoomID, &log.Timestamp, &log.Title, &log.Description, &log.BadgeText, &log.BadgeColor); err != nil {
+			return nil, fmt.Errorf("scan activity log: %w", err)
+		}
+		logs = append(logs, log)
+	}
+	return logs, nil
+}
