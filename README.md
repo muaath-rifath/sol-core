@@ -2,6 +2,10 @@
 
 Backend API for the Sol home automation platform. Built with Go, PostgreSQL (TimescaleDB), Redis, MQTT (VerneMQ), and MinIO.
 
+## Frontend Repository
+
+https://github.com/muaath-rifath/sol-nextjs
+
 ## Authentication
 
 All endpoints require a Bearer token issued by Keycloak.
