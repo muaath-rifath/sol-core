@@ -8,7 +8,7 @@ https://github.com/muaath-rifath/sol-nextjs
 
 ## Authentication
 
-All endpoints require a Bearer token issued by Keycloak.
+All endpoints require a Bearer token issued by Zitadel.
 
 ```
 Authorization: Bearer <access_token>
@@ -51,7 +51,7 @@ Returns the currently authenticated user.
 ```json
 {
   "id": "uuid",
-  "keycloak_id": "keycloak-subject-id",
+  "keycloak_id": "zitadel-subject-id",
   "email": "user@example.com",
   "name": "Jane Doe",
   "created_at": "2026-04-09T10:00:00Z",
