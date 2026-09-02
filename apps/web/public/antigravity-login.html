@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antigravity — Access Portal | AI &amp; IoT Home &amp; Building Automation</title>
+  <meta name="description" content="Secure administrator access portal for the Antigravity AI &amp; IoT Home and Building Automation system, powered by ESP-32. Log in or accept your network invitation." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ═══════════════════════════════════════════════════════════════════════
+       RESET
+    ═══════════════════════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    button { font: inherit; cursor: pointer; }
+    a      { text-decoration: none; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       DESIGN TOKENS
+       RULE: Gradients are exclusively on the page background & ambient layers.
+             Every component — text, buttons, inputs, borders — uses SOLID colors.
+    ═══════════════════════════════════════════════════════════════════════ */
+    :root {
+      /* Background depth palette (only place gradients exist) */
+      --bg-base:  #04080f;
+      --bg-mid:   #07102a;
+      --bg-hi1:   #0d1b47;
+      --bg-hi2:   #13093a;
+
+      /* Glass panel */
+      --glass-bg:        rgba(255,255,255,0.038);
+      --glass-border:    rgba(255,255,255,0.082);
+      --glass-highlight: rgba(255,255,255,0.052);
+      --glass-shadow:
+        0 64px 140px rgba(0,0,0,0.75),
+        0 24px 60px  rgba(0,0,0,0.50),
+        inset 0 1px 0 rgba(255,255,255,0.065),
+        inset 0 -1px 0 rgba(0,0,0,0.30);
+
+      /* ── Solid matte palette — ZERO gradients on any component ── */
+      --clr-primary:    #3d5fe0;  /* solid royal blue-indigo */
+      --clr-primary-h:  #2f4fcf;  /* hover  */
+      --clr-primary-a:  #2442bb;  /* active */
+      --clr-accent:     #6028d4;  /* solid violet accent */
+
+      --clr-surface:    #080e1e;  /* darkest solid surface */
+      --clr-surface-2:  #0e1728;  /* solid dark */
+      --clr-surface-3:  #152035;  /* solid mid  */
+      --clr-surface-4:  #1c2b45;  /* solid lighter */
+      --clr-surface-5:  #23355a;  /* solid lightest */
+
+      --clr-border:     #1a2848;  /* solid matte border */
+      --clr-border-l:   #223360;  /* solid lighter border */
+
+      --clr-success:    #0db470;  /* solid emerald */
+      --clr-success-dim: rgba(13,180,112,0.10);
+      --clr-warn:       #e5a714;  /* solid amber  */
+      --clr-danger:     #df3e3e;  /* solid red    */
+
+      /* Solid text colors — no gradients */
+      --txt-primary:   #dde3f7;
+      --txt-secondary: #7a8dbf;
+      --txt-muted:     #455070;
+      --txt-white:     #ffffff;
+
+      /* Border radius */
+      --r-xs:  4px;
+      --r-sm:  8px;
+      --r-md:  12px;
+      --r-lg:  16px;
+      --r-xl:  22px;
+      --r-2xl: 30px;
+      --r-pill:100px;
+
+      /* Typography */
+      --font-ui:   'Inter', system-ui, sans-serif;
+      --font-head: 'Space Grotesk', system-ui, sans-serif;
+
+      /* Motion */
+      --ease:     cubic-bezier(.4, 0, .2, 1);
+      --ease-out: cubic-bezier(0,  0, .2, 1);
+      --ease-spr: cubic-bezier(.34, 1.56, .64, 1);
+      --t:        0.17s;
+      --t-md:     0.26s;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       BASE
+    ═══════════════════════════════════════════════════════════════════════ */
+    html, body {
+      height: 100%;
+      font-family: var(--font-ui);
+      color: var(--txt-primary);
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       BACKGROUND — THE ONLY PLACE GRADIENTS ARE USED IN THIS FILE
+    ═══════════════════════════════════════════════════════════════════════ */
+    body {
+      background:
+        radial-gradient(ellipse 90% 55% at 15% 5%,  #19367a 0%, transparent 58%),
+        radial-gradient(ellipse 70% 70% at 88% 96%,  #200d50 0%, transparent 54%),
+        radial-gradient(ellipse 50% 50% at 72% 20%,  #0d1e48 0%, transparent 50%),
+        radial-gradient(ellipse 55% 45% at 30% 80%,  #100838 0%, transparent 45%),
+        radial-gradient(ellipse 120% 120% at 50% 50%, var(--bg-mid) 0%, var(--bg-base) 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Fine star-field (static) — background only */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 0;
+      background-image:
+        radial-gradient(1px 1px at  7% 14%, rgba(255,255,255,.60) 0%, transparent 100%),
+        radial-gradient(1px 1px at 73%  8%, rgba(255,255,255,.48) 0%, transparent 100%),
+        radial-gradient(1px 1px at 40% 62%, rgba(255,255,255,.36) 0%, transparent 100%),
+        radial-gradient(1px 1px at 88% 39%, rgba(255,255,255,.44) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at  2% 76%, rgba(255,255,255,.30) 0%, transparent 100%),
+        radial-gradient(1px 1px at 58% 90%, rgba(255,255,255,.24) 0%, transparent 100%),
+        radial-gradient(1px 1px at 27% 47%, rgba(255,255,255,.20) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 94% 71%, rgba(255,255,255,.30) 0%, transparent 100%),
+        radial-gradient(1px 1px at 51% 29%, rgba(255,255,255,.18) 0%, transparent 100%),
+        radial-gradient(1px 1px at 19% 84%, rgba(255,255,255,.22) 0%, transparent 100%),
+        radial-gradient(1px 1px at 63% 53%, rgba(255,255,255,.16) 0%, transparent 100%),
+        radial-gradient(1px 1px at 36% 25%, rgba(255,255,255,.20) 0%, transparent 100%),
+        radial-gradient(1px 1px at 82% 58%, rgba(255,255,255,.14) 0%, transparent 100%),
+        radial-gradient(1px 1px at 48% 78%, rgba(255,255,255,.16) 0%, transparent 100%);
+    }
+
+    /* Ambient coloured glow orbs — background only */
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 0;
+      background-image:
+        radial-gradient(260px 260px at 10% 16%, rgba(61,95,224,.08) 0%, transparent 100%),
+        radial-gradient(320px 320px at 92% 84%, rgba(96,40,212,.07) 0%, transparent 100%),
+        radial-gradient(180px 180px at 68% 38%, rgba(61,95,224,.06) 0%, transparent 100%);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       HEADER
+    ═══════════════════════════════════════════════════════════════════════ */
+    header {
+      position: relative; z-index: 40;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px;
+      height: 66px;
+      border-bottom: 1px solid rgba(255,255,255,0.048);
+      background: rgba(4, 8, 15, 0.78);       /* solid semi-opaque fill */
+      backdrop-filter: blur(24px) saturate(1.4);
+      -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    }
+
+    /* Logo */
+    .logo {
+      display: flex; align-items: center; gap: 12px;
+      user-select: none;
+    }
+    .logo-mark {
+      width: 40px; height: 40px;
+      background: var(--clr-primary);        /* solid — no gradient */
+      border-radius: var(--r-sm);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background var(--t) var(--ease);
+    }
+    .logo:hover .logo-mark { background: var(--clr-primary-h); }
+    .logo-mark svg {
+      width: 22px; height: 22px;
+      fill: none; stroke: #fff; stroke-width: 1.6;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .logo-text {
+      font-family: var(--font-head);
+      font-size: 1.06rem; font-weight: 700;
+      color: var(--txt-primary);             /* solid — no gradient */
+      letter-spacing: -0.03em; line-height: 1.15;
+    }
+    .logo-text small {
+      display: block;
+      font-family: var(--font-ui);
+      font-size: 0.635rem; font-weight: 400;
+      color: var(--txt-muted);
+      letter-spacing: 0.1em; text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* Header nav buttons — solid matte, ZERO gradients */
+    .header-nav { display: flex; align-items: center; gap: 8px; }
+
+    .btn-nav {
+      font-family: var(--font-ui);
+      font-size: 0.78rem; font-weight: 500;
+      padding: 7px 18px;
+      border-radius: var(--r-sm);
+      letter-spacing: 0.01em;
+      transition:
+        background var(--t) var(--ease),
+        color      var(--t) var(--ease),
+        transform  var(--t) var(--ease-spr);
+    }
+    .btn-nav:active { transform: scale(0.965); }
+
+    #btn-manual {
+      background: var(--clr-surface-2);     /* solid dark — no gradient */
+      color: var(--txt-secondary);
+      border: 1px solid var(--clr-border);  /* solid matte border */
+    }
+    #btn-manual:hover {
+      background: var(--clr-surface-3);
+      color: var(--txt-primary);
+      transform: translateY(-1px);
+    }
+
+    #btn-help {
+      background: var(--clr-primary);       /* solid indigo — no gradient */
+      color: var(--txt-white);
+      border: none;
+    }
+    #btn-help:hover {
+      background: var(--clr-primary-h);
+      transform: translateY(-1px);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       MAIN
+    ═══════════════════════════════════════════════════════════════════════ */
+    main {
+      position: relative; z-index: 1;
+      flex: 1; display: flex;
+      align-items: center; justify-content: center;
+      padding: 52px 20px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LEVITATING GLASS PANEL
+       CSS keyframe: gently floats up and back on a smooth sinusoidal curve.
+    ═══════════════════════════════════════════════════════════════════════ */
+    .glass-panel {
+      position: relative;
+      width: 100%; max-width: 468px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(40px) saturate(1.7) brightness(1.06);
+      -webkit-backdrop-filter: blur(40px) saturate(1.7) brightness(1.06);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--r-2xl);
+      box-shadow: var(--glass-shadow);
+      padding: 46px 46px 42px;
+      overflow: hidden;
+      animation: levitate 6.5s ease-in-out infinite;
+      will-change: transform;
+    }
+
+    /* Top-rim inner highlight — solid rgba, not a gradient fill */
+    .glass-panel::before {
+      content: '';
+      position: absolute; top: 0; left: 12%; right: 12%;
+      height: 1px;
+      background: var(--glass-highlight);    /* solid translucent white line */
+      border-radius: 0 0 50% 50%;
+      pointer-events: none;
+    }
+
+    /* Side specular edge — solid left-border sheen */
+    .glass-panel::after {
+      content: '';
+      position: absolute; top: 6%; bottom: 6%; left: 0;
+      width: 1px;
+      background: rgba(255,255,255,0.038);  /* solid — not a gradient */
+      pointer-events: none;
+    }
+
+    @keyframes levitate {
+      0%   { transform: translateY(0px)    scale(1);      }
+      25%  { transform: translateY(-9px)   scale(1.002);  }
+      50%  { transform: translateY(-16px)  scale(1.004);  }
+      75%  { transform: translateY(-9px)   scale(1.002);  }
+      100% { transform: translateY(0px)    scale(1);      }
+    }
+
+    /* ── Panel brand zone ── */
+    .panel-brand {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .panel-icon {
+      width: 56px; height: 56px;
+      background: var(--clr-primary);       /* solid — no gradient */
+      border-radius: var(--r-md);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 18px;
+      transition: background var(--t) var(--ease);
+    }
+    .panel-icon svg {
+      width: 28px; height: 28px;
+      fill: none; stroke: #fff; stroke-width: 1.6;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .panel-title {
+      font-family: var(--font-head);
+      font-size: 1.6rem; font-weight: 700;
+      color: var(--txt-primary);             /* solid — no gradient */
+      letter-spacing: -0.034em; margin-bottom: 5px;
+    }
+    .panel-sub {
+      font-size: 0.82rem; color: var(--txt-secondary);
+      font-weight: 400; line-height: 1.55;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       VIEW TOGGLE TABS — solid matte, ZERO gradients
+    ═══════════════════════════════════════════════════════════════════════ */
+    .view-toggle {
+      display: flex;
+      background: var(--clr-surface);       /* solid darkest surface */
+      border: 1px solid var(--clr-border);  /* solid matte border */
+      border-radius: var(--r-md);
+      padding: 4px; gap: 4px;
+      margin-bottom: 24px;
+    }
+    .tab-btn {
+      flex: 1;
+      font-family: var(--font-ui);
+      font-size: 0.84rem; font-weight: 500;
+      padding: 9px 0;
+      border: none; border-radius: calc(var(--r-md) - 3px);
+      cursor: pointer;
+      background: transparent; color: var(--txt-muted);
+      transition:
+        background var(--t) var(--ease),
+        color      var(--t) var(--ease);
+    }
+    .tab-btn.active {
+      background: var(--clr-primary);       /* solid indigo — no gradient */
+      color: var(--txt-white);
+    }
+    .tab-btn:not(.active):hover {
+      background: var(--clr-surface-3);     /* solid lift */
+      color: var(--txt-secondary);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       VIEWS
+    ═══════════════════════════════════════════════════════════════════════ */
+    .view { display: none; flex-direction: column; gap: 14px; }
+    .view.active { display: flex; }
+
+    /* ── Field ── */
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field > label {
+      font-size: 0.715rem; font-weight: 600;
+      color: var(--txt-muted); letter-spacing: 0.07em;
+      text-transform: uppercase;
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+
+    .forgot-link {
+      font-size: 0.7rem; font-weight: 500;
+      color: var(--txt-secondary);
+      text-transform: none; letter-spacing: 0;
+      transition: color var(--t) var(--ease);
+    }
+    .forgot-link:hover { color: var(--clr-primary); }
+
+    /* Inputs — solid matte, NO gradients */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+      font-family: var(--font-ui);
+      font-size: 0.9rem; color: var(--txt-primary);
+      background: var(--clr-surface);       /* solid dark — no gradient */
+      border: 1px solid var(--clr-border);  /* solid matte border */
+      border-radius: var(--r-sm);
+      padding: 12px 14px; width: 100%; outline: none;
+      transition:
+        border-color var(--t) var(--ease),
+        background   var(--t) var(--ease);
+    }
+    input::placeholder { color: var(--txt-muted); }
+    input:focus {
+      border-color: var(--clr-primary);     /* solid focus ring */
+      background: var(--clr-surface-2);     /* solid lift */
+    }
+
+    /* Checkbox */
+    .check-row {
+      display: flex; align-items: center; gap: 9px;
+      font-size: 0.79rem; color: var(--txt-secondary);
+      cursor: pointer; user-select: none;
+    }
+    .check-row input[type="checkbox"] {
+      appearance: none; -webkit-appearance: none;
+      width: 16px; height: 16px; min-width: 16px;
+      background: var(--clr-surface);       /* solid */
+      border: 1px solid var(--clr-border);  /* solid */
+      border-radius: 4px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition:
+        background     var(--t) var(--ease),
+        border-color   var(--t) var(--ease);
+    }
+    .check-row input[type="checkbox"]:checked {
+      background: var(--clr-primary);       /* solid on check — no gradient */
+      border-color: var(--clr-primary);
+    }
+    .check-row input[type="checkbox"]:checked::after {
+      content: '✓';
+      display: block;
+      color: #fff; font-size: 10px; line-height: 1;
+      font-weight: 700; text-align: center; width: 100%;
+    }
+
+    /* Submit button — solid matte, NO gradient */
+    .btn-submit {
+      font-family: var(--font-ui);
+      font-size: 0.9rem; font-weight: 600;
+      color: var(--txt-white);
+      background: var(--clr-primary);       /* solid indigo — no gradient */
+      border: none; border-radius: var(--r-sm);
+      padding: 13px 0; width: 100%;
+      cursor: pointer; letter-spacing: 0.02em;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-top: 4px;
+      transition:
+        background  var(--t) var(--ease),
+        transform   var(--t) var(--ease-spr),
+        box-shadow  var(--t) var(--ease);
+    }
+    .btn-submit:hover {
+      background: var(--clr-primary-h);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(61,95,224,0.28);
+    }
+    .btn-submit:active {
+      background: var(--clr-primary-a);
+      transform: translateY(0); box-shadow: none;
+    }
+    .btn-submit svg {
+      width: 16px; height: 16px;
+      fill: none; stroke: #fff; stroke-width: 2;
+      stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0;
+    }
+
+    /* Divider */
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 2px 0;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px;
+      background: var(--clr-border);        /* solid line — no gradient */
+    }
+    .divider-text {
+      font-size: 0.67rem; font-weight: 600;
+      color: var(--txt-muted); text-transform: uppercase; letter-spacing: 0.09em;
+      white-space: nowrap;
+    }
+
+    /* Inline alert */
+    .alert {
+      font-size: 0.78rem; font-weight: 500;
+      color: var(--clr-danger);
+      background: rgba(223,62,62,0.08);     /* solid tint — no gradient */
+      border: 1px solid rgba(223,62,62,0.20);/* solid border */
+      border-radius: var(--r-sm);
+      padding: 9px 12px;
+      display: none;
+    }
+    .alert.show { display: block; }
+
+    /* ── Invite context banner — solid, no gradient ── */
+    .invite-banner {
+      background: var(--clr-surface-2);     /* solid surface */
+      border: 1px solid var(--clr-border);  /* solid matte border */
+      border-radius: var(--r-md);
+      padding: 13px 15px;
+      display: flex; align-items: flex-start; gap: 11px;
+    }
+    .invite-icon-wrap {
+      width: 34px; height: 34px; flex-shrink: 0;
+      background: var(--clr-surface-3);     /* solid */
+      border-radius: var(--r-xs);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .invite-icon-wrap svg {
+      width: 17px; height: 17px;
+      fill: none; stroke: var(--clr-warn); stroke-width: 1.65;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .invite-body { flex: 1; }
+    .invite-title {
+      font-size: 0.775rem; font-weight: 600;
+      color: var(--txt-primary); margin-bottom: 3px;
+    }
+    .invite-desc {
+      font-size: 0.695rem; color: var(--txt-muted); line-height: 1.5;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       DRAG & DROP ZONE
+       Border: solid dashed only — no gradient fills anywhere
+    ═══════════════════════════════════════════════════════════════════════ */
+    .drop-zone {
+      position: relative;
+      border: 2px dashed var(--clr-border);  /* solid dashed — no gradient */
+      border-radius: var(--r-md);
+      padding: 28px 20px 24px;
+      display: flex; flex-direction: column; align-items: center; gap: 9px;
+      cursor: pointer; text-align: center;
+      background: transparent;
+      overflow: hidden;
+      transition:
+        border-color var(--t-md) var(--ease),
+        background   var(--t-md) var(--ease);
+    }
+    /* Hidden file input positioned over entire zone for click-to-browse */
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0;
+      opacity: 0; cursor: pointer;
+      width: 100%; height: 100%;
+    }
+
+    .dz-icon-wrap {
+      width: 50px; height: 50px;
+      background: var(--clr-surface-2);     /* solid — no gradient */
+      border-radius: var(--r-md);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition:
+        background var(--t-md) var(--ease),
+        transform  var(--t-md) var(--ease-spr);
+    }
+    .dz-icon-wrap svg {
+      width: 24px; height: 24px;
+      fill: none; stroke: var(--clr-primary); stroke-width: 1.65;
+      stroke-linecap: round; stroke-linejoin: round;
+      transition: stroke var(--t) var(--ease);
+    }
+
+    .dz-title {
+      font-weight: 600; font-size: 0.88rem; color: var(--txt-primary);
+    }
+    .dz-hint {
+      font-size: 0.72rem; color: var(--txt-muted); line-height: 1.5;
+    }
+    .dz-formats {
+      display: flex; gap: 5px; flex-wrap: wrap; justify-content: center;
+      margin-top: 2px;
+    }
+    .dz-fmt-tag {
+      font-size: 0.625rem; font-weight: 600; letter-spacing: 0.05em;
+      background: var(--clr-surface-3);     /* solid — no gradient */
+      border: 1px solid var(--clr-border);  /* solid border */
+      color: var(--txt-muted);
+      border-radius: var(--r-xs); padding: 2px 7px;
+    }
+    .dz-filename {
+      font-size: 0.79rem; font-weight: 600;
+      color: var(--clr-success);
+      display: none; margin-top: 2px;
+    }
+
+    /* DRAG-OVER — solid colour change, no gradient */
+    .drop-zone.drag-over {
+      border-color: var(--clr-primary);
+      background: var(--clr-surface-2);     /* solid matte lift */
+    }
+    .drop-zone.drag-over .dz-icon-wrap {
+      background: var(--clr-primary);       /* solid indigo fill */
+      transform: scale(1.08) translateY(-2px);
+    }
+    .drop-zone.drag-over .dz-icon-wrap svg { stroke: #fff; }
+
+    /* FILE-ACCEPTED — solid success tint */
+    .drop-zone.file-accepted {
+      border-color: var(--clr-success);
+      background: var(--clr-success-dim);   /* solid success tint */
+    }
+    .drop-zone.file-accepted .dz-icon-wrap {
+      background: rgba(13,180,112,0.18);    /* solid tint */
+    }
+    .drop-zone.file-accepted .dz-icon-wrap svg { stroke: var(--clr-success); }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       FOOTER — ESP-32 Global Hardware Connection Status
+    ═══════════════════════════════════════════════════════════════════════ */
+    footer {
+      position: relative; z-index: 40;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; height: 54px;
+      border-top: 1px solid rgba(255,255,255,0.044);
+      background: rgba(4, 8, 15, 0.78);    /* solid semi-opaque */
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      flex-wrap: wrap; gap: 8px;
+    }
+
+    .footer-copy {
+      font-size: 0.71rem; color: var(--txt-muted);
+    }
+
+    /* ESP-32 status cluster */
+    .esp-cluster { display: flex; align-items: center; gap: 8px; }
+
+    .esp-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--clr-surface);      /* solid dark — no gradient */
+      border: 1px solid var(--clr-border); /* solid matte border */
+      border-radius: var(--r-pill);
+      padding: 5px 14px 5px 9px;
+    }
+
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--clr-success);      /* solid green — no gradient */
+      flex-shrink: 0;
+      animation: dot-pulse 2.6s ease-in-out infinite;
+    }
+    .status-dot.warn    { background: var(--clr-warn);   animation-duration: 1.8s; }
+    .status-dot.offline { background: var(--clr-danger); animation: none; }
+
+    @keyframes dot-pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.22; }
+    }
+
+    .status-label {
+      font-size: 0.71rem; font-weight: 500; letter-spacing: 0.02em;
+      color: var(--txt-secondary);
+    }
+
+    .status-badge {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.07em;
+      text-transform: uppercase;
+      border-radius: 3px; padding: 2px 6px;
+    }
+    .status-badge.online {
+      color: var(--clr-success);           /* solid — no gradient */
+      background: rgba(13,180,112,0.13);
+    }
+    .status-badge.warn {
+      color: var(--clr-warn);
+      background: rgba(229,167,20,0.13);
+    }
+    .status-badge.offline {
+      color: var(--clr-danger);
+      background: rgba(223,62,62,0.13);
+    }
+
+    .esp-meta {
+      font-size: 0.675rem; color: var(--txt-muted);
+    }
+    .esp-meta strong {
+      color: var(--txt-secondary); font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       RESPONSIVE
+    ═══════════════════════════════════════════════════════════════════════ */
+    @media (max-width: 600px) {
+      header  { padding: 0 18px; }
+      footer  { padding: 0 18px; height: auto; padding-block: 12px; }
+      main    { padding: 24px 14px; }
+      .glass-panel { padding: 28px 22px 26px; }
+      #btn-manual  { display: none; }
+      .esp-meta    { display: none; }
+      .panel-title { font-size: 1.38rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ════════════════════════ HEADER ════════════════════════ -->
+  <header>
+    <a class="logo" href="#" id="logo-link" aria-label="Antigravity — Home">
+      <div class="logo-mark" aria-hidden="true">
+        <!-- Atom / orbit icon -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="2.3" fill="white" stroke="none"/>
+          <ellipse cx="12" cy="12" rx="9.5" ry="3.6"/>
+          <ellipse cx="12" cy="12" rx="9.5" ry="3.6" transform="rotate(60 12 12)"/>
+          <ellipse cx="12" cy="12" rx="9.5" ry="3.6" transform="rotate(120 12 12)"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        Antigravity
+        <small>AI &amp; IoT Home Automation</small>
+      </div>
+    </a>
+
+    <nav class="header-nav" aria-label="Header actions">
+      <button class="btn-nav" id="btn-manual" type="button">User Manual</button>
+      <button class="btn-nav" id="btn-help"   type="button">Ask for Help</button>
+    </nav>
+  </header>
+
+  <!-- ════════════════════════ MAIN ════════════════════════ -->
+  <main>
+    <div class="glass-panel" id="glass-panel" role="region" aria-label="Antigravity Authentication Panel">
+
+      <!-- Panel brand -->
+      <div class="panel-brand">
+        <div class="panel-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="2.3" fill="white" stroke="none"/>
+            <ellipse cx="12" cy="12" rx="9.5" ry="3.6"/>
+            <ellipse cx="12" cy="12" rx="9.5" ry="3.6" transform="rotate(60 12 12)"/>
+            <ellipse cx="12" cy="12" rx="9.5" ry="3.6" transform="rotate(120 12 12)"/>
+          </svg>
+        </div>
+        <h1 class="panel-title" id="panel-title">Admin Login</h1>
+        <p  class="panel-sub"   id="panel-sub">Secure access to your automation network</p>
+      </div>
+
+      <!-- View toggle tabs -->
+      <div class="view-toggle" role="tablist" aria-label="Authentication mode">
+        <button
+          class="tab-btn active"
+          id="tab-login"
+          role="tab"
+          aria-selected="true"
+          aria-controls="view-login"
+          type="button"
+        >Log In</button>
+        <button
+          class="tab-btn"
+          id="tab-signup"
+          role="tab"
+          aria-selected="false"
+          aria-controls="view-signup"
+          type="button"
+        >Sign Up / Invite</button>
+      </div>
+
+      <!-- Inline alert -->
+      <div class="alert" id="form-alert" role="alert" aria-live="assertive"></div>
+
+      <!-- ─────────────────── LOG IN VIEW ─────────────────── -->
+      <div class="view active" id="view-login" role="tabpanel" aria-labelledby="tab-login">
+
+        <div class="field">
+          <label for="login-email">Administrator Email</label>
+          <input
+            type="email" id="login-email" name="login-email"
+            placeholder="admin@home.local"
+            autocomplete="email" required
+          />
+        </div>
+
+        <div class="field">
+          <label for="login-password">
+            Admin Password
+            <a href="#" class="forgot-link" id="forgot-link" tabindex="0">Forgot password?</a>
+          </label>
+          <input
+            type="password" id="login-password" name="login-password"
+            placeholder="••••••••••••••"
+            autocomplete="current-password" required
+          />
+        </div>
+
+        <label class="check-row" for="remember-me">
+          <input type="checkbox" id="remember-me" name="remember-me" />
+          Keep me signed in on this device
+        </label>
+
+        <button class="btn-submit" id="btn-login" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+            <polyline points="10 17 15 12 10 7"/>
+            <line x1="15" y1="12" x2="3" y2="12"/>
+          </svg>
+          Log In to Dashboard
+        </button>
+
+      </div><!-- /view-login -->
+
+      <!-- ─────────────────── SIGN UP / INVITE VIEW ─────────────────── -->
+      <div class="view" id="view-signup" role="tabpanel" aria-labelledby="tab-signup">
+
+        <!-- Invitation context banner -->
+        <div class="invite-banner" aria-label="Invitation-only notice">
+          <div class="invite-icon-wrap" aria-hidden="true">
+            <!-- Bell / notification icon -->
+            <svg viewBox="0 0 24 24">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+          </div>
+          <div class="invite-body">
+            <p class="invite-title">Invitation-Only Network Access</p>
+            <p class="invite-desc">To join this Antigravity network, the network administrator must have sent you a personal invitation token file.</p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="signup-name">Full Name</label>
+          <input
+            type="text" id="signup-name" name="signup-name"
+            placeholder="Ada Lovelace"
+            autocomplete="name" required
+          />
+        </div>
+
+        <div class="field">
+          <label for="signup-email">Email Address</label>
+          <input
+            type="email" id="signup-email" name="signup-email"
+            placeholder="you@example.com"
+            autocomplete="email" required
+          />
+        </div>
+
+        <div class="field">
+          <label for="signup-password">Create Password</label>
+          <input
+            type="password" id="signup-password" name="signup-password"
+            placeholder="Min. 8 characters"
+            autocomplete="new-password" required
+          />
+        </div>
+
+        <div class="divider">
+          <span class="divider-text">Network Invitation Token</span>
+        </div>
+
+        <!-- ─── Drag & Drop Zone ─── -->
+        <div
+          class="drop-zone"
+          id="drop-zone"
+          role="button"
+          tabindex="0"
+          aria-label="Drag and drop your invitation token file here, or click to browse"
+        >
+          <!-- Hidden file input for click-to-browse -->
+          <input
+            type="file" id="token-file-input" name="access-token"
+            accept=".token,.json,.key,.pem,.txt,.inv"
+            tabindex="-1" aria-hidden="true"
+          />
+
+          <div class="dz-icon-wrap" id="dz-icon-wrap" aria-hidden="true">
+            <!-- Upload arrow icon -->
+            <svg viewBox="0 0 24 24" id="dz-svg">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+
+          <p class="dz-title" id="dz-title">Drop your Invitation Token File</p>
+          <p class="dz-hint"  id="dz-hint">Drag &amp; drop here, or click to browse</p>
+
+          <div class="dz-formats" id="dz-formats" aria-hidden="true">
+            <span class="dz-fmt-tag">.token</span>
+            <span class="dz-fmt-tag">.json</span>
+            <span class="dz-fmt-tag">.key</span>
+            <span class="dz-fmt-tag">.pem</span>
+            <span class="dz-fmt-tag">.inv</span>
+          </div>
+
+          <p class="dz-filename" id="dz-filename" aria-live="polite"></p>
+        </div>
+
+        <button class="btn-submit" id="btn-signup" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <line x1="19" y1="8" x2="19" y2="14"/>
+            <line x1="22" y1="11" x2="16" y2="11"/>
+          </svg>
+          Accept Invitation &amp; Join Network
+        </button>
+
+      </div><!-- /view-signup -->
+
+    </div><!-- /glass-panel -->
+  </main>
+
+  <!-- ════════════════════════ FOOTER ════════════════════════ -->
+  <footer>
+    <p class="footer-copy" id="footer-copy">
+      &copy; <span id="footer-year"></span> Antigravity Systems. All rights reserved.
+    </p>
+
+    <div class="esp-cluster" aria-label="ESP-32 Global Hardware Connection Status">
+      <div class="esp-pill" id="esp-pill">
+        <div class="status-dot" id="status-dot" aria-hidden="true"></div>
+        <span class="status-label">ESP-32 Global</span>
+        <span class="status-badge online" id="status-badge">Connected</span>
+      </div>
+      <span class="esp-meta" id="esp-meta">
+        Node:&nbsp;<strong id="esp-node">AG-ESP32-01</strong>&nbsp;&nbsp;·&nbsp;&nbsp;IP:&nbsp;<strong id="esp-ip">192.168.1.88</strong>&nbsp;&nbsp;·&nbsp;&nbsp;Uptime:&nbsp;<strong id="esp-uptime">--</strong>
+      </span>
+    </div>
+  </footer>
+
+  <!-- ════════════════════════ JAVASCRIPT ════════════════════════ -->
+  <script>
+    'use strict';
+
+    /* ── Footer year ─────────────────────────────────────── */
+    document.getElementById('footer-year').textContent = new Date().getFullYear();
+
+    /* ── ESP-32 simulated uptime ticker ───────────────────── */
+    let uptimeSecs = Math.floor(Math.random() * 72000) + 3600; // 1–21 hrs
+    function fmtUptime(s) {
+      const h   = Math.floor(s / 3600).toString().padStart(2, '0');
+      const m   = Math.floor((s % 3600) / 60).toString().padStart(2, '0');
+      const sec = (s % 60).toString().padStart(2, '0');
+      return `${h}:${m}:${sec}`;
+    }
+    const uptimeEl = document.getElementById('esp-uptime');
+    function tickUptime() { uptimeEl.textContent = fmtUptime(uptimeSecs++); }
+    tickUptime();
+    setInterval(tickUptime, 1000);
+
+    /* ── Utility ──────────────────────────────────────────── */
+    function formatBytes(b) {
+      if (b < 1024)    return b + ' B';
+      if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+      return (b / 1048576).toFixed(1) + ' MB';
+    }
+
+    /* ── Alert ────────────────────────────────────────────── */
+    const alertBox = document.getElementById('form-alert');
+    function clearAlert()    { alertBox.textContent = ''; alertBox.classList.remove('show'); }
+    function showAlert(msg)  { alertBox.textContent = msg; alertBox.classList.add('show'); }
+
+    /* ── View toggle ──────────────────────────────────────── */
+    const tabLogin   = document.getElementById('tab-login');
+    const tabSignup  = document.getElementById('tab-signup');
+    const vLogin     = document.getElementById('view-login');
+    const vSignup    = document.getElementById('view-signup');
+    const panelTitle = document.getElementById('panel-title');
+    const panelSub   = document.getElementById('panel-sub');
+
+    function switchView(view) {
+      clearAlert();
+      const isLogin = (view === 'login');
+
+      tabLogin.classList.toggle('active',  isLogin);
+      tabSignup.classList.toggle('active', !isLogin);
+      tabLogin.setAttribute('aria-selected',  String(isLogin));
+      tabSignup.setAttribute('aria-selected', String(!isLogin));
+
+      vLogin.classList.toggle('active',  isLogin);
+      vSignup.classList.toggle('active', !isLogin);
+
+      panelTitle.textContent = isLogin ? 'Admin Login' : 'Network Invitation';
+      panelSub.textContent   = isLogin
+        ? 'Secure access to your automation network'
+        : 'Accept your invitation to join the Antigravity network';
+    }
+
+    tabLogin.addEventListener('click',  () => switchView('login'));
+    tabSignup.addEventListener('click', () => switchView('signup'));
+
+    /* ── Drag & Drop ──────────────────────────────────────── */
+    const dropZone   = document.getElementById('drop-zone');
+    const fileInput  = document.getElementById('token-file-input');
+    const dzTitle    = document.getElementById('dz-title');
+    const dzHint     = document.getElementById('dz-hint');
+    const dzFormats  = document.getElementById('dz-formats');
+    const dzFilename = document.getElementById('dz-filename');
+
+    let attachedFile = null;
+    let dragCounter  = 0; // track nested dragenter/dragleave correctly
+
+    function setFileAccepted(file) {
+      attachedFile = file;
+      dragCounter  = 0;
+      dropZone.classList.remove('drag-over');
+      dropZone.classList.add('file-accepted');
+      dzTitle.textContent      = 'Token file attached!';
+      dzHint.textContent       = 'Click or drag to replace file';
+      dzFormats.style.display  = 'none';
+      dzFilename.style.display = 'block';
+      dzFilename.textContent   = `✓  ${file.name}  (${formatBytes(file.size)})`;
+      clearAlert();
+    }
+
+    function resetDropZone() {
+      attachedFile = null;
+      dragCounter  = 0;
+      dropZone.classList.remove('file-accepted', 'drag-over');
+      dzTitle.textContent      = 'Drop your Invitation Token File';
+      dzHint.textContent       = 'Drag & drop here, or click to browse';
+      dzFormats.style.display  = '';
+      dzFilename.style.display = 'none';
+      dzFilename.textContent   = '';
+    }
+
+    /* Drag-enter: use counter to avoid flicker on child elements */
+    dropZone.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragCounter++;
+      if (!dropZone.classList.contains('file-accepted'))
+        dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+
+    dropZone.addEventListener('dragleave', (e) => {
+      dragCounter--;
+      if (dragCounter <= 0) {
+        dragCounter = 0;
+        dropZone.classList.remove('drag-over');
+      }
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragCounter = 0;
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) setFileAccepted(file);
+    });
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (file) setFileAccepted(file);
+      // reset value so same file can be re-selected after reset
+      fileInput.value = '';
+    });
+
+    /* Keyboard accessibility */
+    dropZone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+
+    /* Double-click on accepted zone → reset */
+    dropZone.addEventListener('dblclick', () => {
+      if (dropZone.classList.contains('file-accepted')) resetDropZone();
+    });
+
+    /* ── Form validation handlers ─────────────────────────── */
+    document.getElementById('btn-login').addEventListener('click', handleLogin);
+    document.getElementById('btn-signup').addEventListener('click', handleSignUp);
+
+    function handleLogin() {
+      clearAlert();
+      const email = document.getElementById('login-email').value.trim();
+      const pass  = document.getElementById('login-password').value;
+      if (!email || !pass) {
+        showAlert('Please enter your administrator email and password.');
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showAlert('Please enter a valid email address.');
+        return;
+      }
+      // TODO: POST /api/auth/login
+      console.info('[Antigravity] Admin login attempt →', email);
+    }
+
+    function handleSignUp() {
+      clearAlert();
+      const name  = document.getElementById('signup-name').value.trim();
+      const email = document.getElementById('signup-email').value.trim();
+      const pass  = document.getElementById('signup-password').value;
+      if (!name)  { showAlert('Please enter your full name.'); return; }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showAlert('Please enter a valid email address.'); return;
+      }
+      if (!pass || pass.length < 8) {
+        showAlert('Password must be at least 8 characters.'); return;
+      }
+      if (!attachedFile) {
+        showAlert('Please attach your invitation token file to continue.'); return;
+      }
+      // TODO: POST /api/auth/accept-invite
+      console.info('[Antigravity] Accept invite →', name, email, attachedFile.name);
+    }
+
+    /* ── Header button stubs ──────────────────────────────── */
+    document.getElementById('btn-manual').addEventListener('click', () => {
+      console.info('[Antigravity] Open User Manual');
+      // window.open('/docs/user-manual.pdf', '_blank');
+    });
+    document.getElementById('btn-help').addEventListener('click', () => {
+      console.info('[Antigravity] Open Help / Support');
+      // window.open('/support', '_blank');
+    });
+  </script>
+</body>
+</html>

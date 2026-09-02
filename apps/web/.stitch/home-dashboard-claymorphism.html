@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Nestly Clay - Home Dashboard</title>
+<!-- Fonts: Inter & Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;family=Plus+Jakarta+Sans:wght@600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container": "#f0eee9",
+                    "surface-tint": "#a53b29",
+                    "on-surface-variant": "#57423e",
+                    "tertiary": "#515f74",
+                    "outline-variant": "#dec0ba",
+                    "on-error": "#ffffff",
+                    "on-primary-fixed-variant": "#842415",
+                    "surface-dim": "#dbdad5",
+                    "surface-bright": "#fbf9f4",
+                    "outline": "#8b716d",
+                    "on-error-container": "#93000a",
+                    "on-secondary-fixed-variant": "#643f00",
+                    "surface-container-high": "#eae8e3",
+                    "on-background": "#1b1c19",
+                    "error": "#ba1a1a",
+                    "on-tertiary": "#ffffff",
+                    "surface-container-low": "#f5f3ee",
+                    "inverse-primary": "#ffb4a6",
+                    "surface": "#fbf9f4",
+                    "secondary-fixed": "#ffddb6",
+                    "surface-container-lowest": "#ffffff",
+                    "background": "#fbf9f4",
+                    "secondary-fixed-dim": "#ffb95a",
+                    "on-primary": "#ffffff",
+                    "on-surface": "#1b1c19",
+                    "tertiary-fixed": "#d4e4fc",
+                    "tertiary-container": "#96a5bb",
+                    "primary-fixed": "#ffdad4",
+                    "tertiary-fixed-dim": "#b8c8df",
+                    "on-secondary": "#ffffff",
+                    "on-tertiary-fixed-variant": "#39485b",
+                    "primary-container": "#ff7e67",
+                    "on-tertiary-fixed": "#0d1c2e",
+                    "on-secondary-container": "#6f4600",
+                    "inverse-surface": "#30312e",
+                    "secondary": "#845400",
+                    "primary": "#a53b29",
+                    "secondary-container": "#feb246",
+                    "on-primary-fixed": "#3f0300",
+                    "on-primary-container": "#731709",
+                    "primary-fixed-dim": "#ffb4a6",
+                    "error-container": "#ffdad6",
+                    "surface-variant": "#e4e2dd",
+                    "surface-container-highest": "#e4e2dd",
+                    "on-tertiary-container": "#2c3b4e",
+                    "on-secondary-fixed": "#2a1800",
+                    "inverse-on-surface": "#f2f1ec"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "lg": "40px",
+                    "gutter": "16px",
+                    "xs": "4px",
+                    "sm": "12px",
+                    "xl": "64px",
+                    "md": "24px",
+                    "base": "8px",
+                    "container-padding": "24px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "display-lg": ["Plus Jakarta Sans"],
+                    "body-lg": ["Inter"],
+                    "headline-md": ["Plus Jakarta Sans"]
+            },
+            "fontSize": {
+                    "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "label-sm": ["13px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "display-lg": ["40px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}]
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-background text-on-background antialiased selection:bg-primary-container selection:text-on-primary-container min-h-screen flex">
+<!-- SideNavBar (Shared Component) -->
+<nav class="hidden md:flex flex-col p-6 z-40 fixed left-0 top-0 h-screen w-72 rounded-r-[50px] shadow-[20px_0_40px_rgba(0,0,0,0.05)] border-r border-white/20 bg-stone-100 dark:bg-stone-800">
+<!-- Header -->
+<div class="flex items-center gap-sm mb-xl px-2">
+<div class="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center shadow-[inset_2px_2px_4px_rgba(255,255,255,0.4),4px_4px_8px_rgba(0,0,0,0.1)]">
+<span class="material-symbols-outlined text-on-primary-container" data-icon="home" style="font-variation-settings: 'FILL' 1;">home</span>
+</div>
+<div>
+<h2 class="text-xl font-bold text-stone-800 dark:text-stone-100 tracking-tight">Sweet Home</h2>
+<p class="font-body-md text-body-md text-stone-500 text-sm">4 devices active</p>
+</div>
+</div>
+<!-- Navigation Links -->
+<ul class="flex-1 flex flex-col gap-xs font-plus-jakarta text-base font-semibold">
+<!-- Active Tab (Living Room acts as the primary dashboard overview anchor) -->
+<li>
+<a class="bg-white dark:bg-stone-700 text-orange-600 shadow-[6px_6px_12px_rgba(0,0,0,0.1),-6px_-6px_12px_rgba(255,255,255,0.8)] rounded-[24px] m-2 flex items-center p-4 active:inner-shadow-lg duration-150" href="#">
+<span class="material-symbols-outlined mr-sm" data-icon="chair" style="font-variation-settings: 'FILL' 1;">chair</span>
+                    Living Room
+                </a>
+</li>
+<!-- Inactive Tabs -->
+<li>
+<a class="text-stone-500 dark:text-stone-400 m-2 flex items-center p-4 opacity-70 hover:bg-orange-50 dark:hover:bg-stone-700/50 transition-colors active:inner-shadow-lg duration-150 rounded-[24px]" href="#">
+<span class="material-symbols-outlined mr-sm" data-icon="cooking">cooking</span>
+                    Kitchen
+                </a>
+</li>
+<li>
+<a class="text-stone-500 dark:text-stone-400 m-2 flex items-center p-4 opacity-70 hover:bg-orange-50 dark:hover:bg-stone-700/50 transition-colors active:inner-shadow-lg duration-150 rounded-[24px]" href="#">
+<span class="material-symbols-outlined mr-sm" data-icon="bed">bed</span>
+                    Bedroom
+                </a>
+</li>
+<li>
+<a class="text-stone-500 dark:text-stone-400 m-2 flex items-center p-4 opacity-70 hover:bg-orange-50 dark:hover:bg-stone-700/50 transition-colors active:inner-shadow-lg duration-150 rounded-[24px]" href="#">
+<span class="material-symbols-outlined mr-sm" data-icon="group">group</span>
+                    Family
+                </a>
+</li>
+<li>
+<a class="text-stone-500 dark:text-stone-400 m-2 flex items-center p-4 opacity-70 hover:bg-orange-50 dark:hover:bg-stone-700/50 transition-colors active:inner-shadow-lg duration-150 rounded-[24px]" href="#">
+<span class="material-symbols-outlined mr-sm" data-icon="bolt">bolt</span>
+                    Energy
+                </a>
+</li>
+</ul>
+<!-- CTA -->
+<button class="mt-auto bg-surface-container-high text-on-surface font-label-sm text-label-sm py-4 px-6 rounded-full shadow-[6px_6px_12px_rgba(27,28,25,0.05),-6px_-6px_12px_rgba(255,255,255,0.8),inset_1px_1px_2px_rgba(255,255,255,1)] hover:bg-surface-container transition-all active:shadow-[inset_4px_4px_8px_rgba(27,28,25,0.05),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] flex items-center justify-center gap-xs">
+<span class="material-symbols-outlined text-lg" data-icon="add">add</span>
+            Add New Room
+        </button>
+</nav>
+<!-- Main Content Wrapper -->
+<main class="flex-1 md:ml-72 flex flex-col min-h-screen relative">
+<!-- TopAppBar (Shared Component) -->
+<header class="fixed top-0 w-full md:w-[calc(100%-18rem)] rounded-b-[40px] px-6 py-4 flex justify-between items-center z-50 bg-orange-50/50 dark:bg-stone-900/50 backdrop-blur-md shadow-xl dark:shadow-stone-950/50 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),0_10px_30px_rgba(255,126,103,0.1)]">
+<div class="flex items-center gap-sm">
+<!-- Mobile Menu Icon (Only visible on small screens) -->
+<button class="md:hidden p-2 text-stone-400 font-medium active:scale-95 transition-all cubic-bezier(0.34,1.56,0.64,1)">
+<span class="material-symbols-outlined" data-icon="menu">menu</span>
+</button>
+<h1 class="text-2xl font-black text-orange-600 dark:text-orange-500 italic tracking-tight">Nestly Clay</h1>
+</div>
+<div class="flex items-center gap-md">
+<!-- Search Bar Placeholder -->
+<div class="hidden sm:flex items-center bg-white/60 dark:bg-stone-800/60 rounded-full px-4 py-2 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.05),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] border border-white/40">
+<span class="material-symbols-outlined text-stone-400 text-sm mr-2" data-icon="search">search</span>
+<input class="bg-transparent border-none outline-none text-sm font-plus-jakarta text-stone-600 placeholder-stone-400 w-32 focus:w-48 transition-all duration-300" placeholder="Search devices..." type="text"/>
+</div>
+<!-- Trailing Icons -->
+<div class="flex items-center gap-xs">
+<button class="p-2 rounded-full text-stone-400 font-medium hover:scale-105 transition-transform duration-300 active:scale-95 hover:bg-white/40 shadow-[2px_2px_4px_rgba(0,0,0,0.05),-2px_-2px_4px_rgba(255,255,255,0.8)] relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full"></span>
+</button>
+<button class="p-2 rounded-full text-stone-400 font-medium hover:scale-105 transition-transform duration-300 active:scale-95 hover:bg-white/40 shadow-[2px_2px_4px_rgba(0,0,0,0.05),-2px_-2px_4px_rgba(255,255,255,0.8)]">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</div>
+<!-- Profile Image -->
+<div class="w-10 h-10 rounded-full overflow-hidden shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.9)] border-2 border-white/50 cursor-pointer hover:scale-105 transition-transform duration-300">
+<img alt="User profile" class="w-full h-full object-cover" data-alt="close up portrait of a young woman with warm natural lighting and soft background blur" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKavFHDh3jSf_l3xNovlPABiz2k2go0Dv8hzGjvvuzxEh2GGFSsHvcVuot2doO-yjVX_Zncr50EiFpLR3eg7Vo4WnHx8cf8g5RbBgdxo9eyJwSAhGOt9QK2tQmlKwNv7J44cySqV8kLhaT5sky5qo6iRugDloHRSDlXGO0We74Ow-WWNXs28IusAYv0-z4EhR-RSXFSLDkSGtuiIibuo068jIBOKXTOv9e9uUEDCmVPAIKIdeZK7Q1zdWs9S8A9jppVlXmK3cIYFv6"/>
+</div>
+</div>
+</header>
+<!-- Dashboard Canvas -->
+<div class="flex-1 p-container-padding pt-32 overflow-y-auto">
+<!-- Greeting & Quick Stats -->
+<div class="mb-lg px-2">
+<h2 class="font-display-lg text-display-lg text-on-surface mb-xs">Good morning, Alex.</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant opacity-80">The house is at a comfortable 22°C. No active alerts.</p>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
+<!-- Primary Control Card (Living Room) - Col Span 2, Row Span 2 -->
+<div class="col-span-1 md:col-span-2 lg:row-span-2 bg-surface-container rounded-xl p-6 shadow-[12px_12px_24px_rgba(27,28,25,0.06),-12px_-12px_24px_rgba(255,255,255,0.9),inset_2px_2px_4px_rgba(255,255,255,0.8),inset_-2px_-2px_4px_rgba(27,28,25,0.02)] border border-white/40 flex flex-col justify-between relative overflow-hidden group">
+<!-- Soft Background Gradient Blob -->
+<div class="absolute -top-20 -right-20 w-64 h-64 bg-primary-container/30 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-700 ease-out pointer-events-none"></div>
+<div class="flex justify-between items-start mb-xl relative z-10">
+<div>
+<div class="flex items-center gap-xs text-primary mb-2">
+<span class="material-symbols-outlined" data-icon="chair" style="font-variation-settings: 'FILL' 1;">chair</span>
+<span class="font-label-sm text-label-sm uppercase tracking-wider">Living Room</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Ambient Relax</h3>
+</div>
+<div class="w-14 h-8 bg-surface-variant rounded-full shadow-[inset_4px_4px_8px_rgba(27,28,25,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] p-1 flex items-center cursor-pointer justify-end">
+<!-- Toggle Knob On -->
+<div class="w-6 h-6 bg-primary rounded-full shadow-[2px_2px_4px_rgba(0,0,0,0.2),-2px_-2px_4px_rgba(255,255,255,0.4)]"></div>
+</div>
+</div>
+<div class="relative z-10 flex gap-md">
+<!-- Radial Dimmer Simulator (Clay style) -->
+<div class="w-32 h-32 rounded-full bg-surface-container-low shadow-[10px_10px_20px_rgba(27,28,25,0.05),-10px_-10px_20px_rgba(255,255,255,0.8)] border border-white/50 flex items-center justify-center relative">
+<!-- Track -->
+<div class="absolute inset-4 rounded-full border-[12px] border-surface-variant shadow-[inset_4px_4px_8px_rgba(27,28,25,0.05),inset_-4px_-4px_8px_rgba(255,255,255,0.5)]"></div>
+<!-- Active Track Segment (Simulated with color) -->
+<div class="absolute inset-4 rounded-full border-[12px] border-transparent border-t-primary-container border-r-primary-container rotate-45"></div>
+<!-- Value -->
+<span class="font-headline-md text-headline-md text-on-surface font-bold">65%</span>
+</div>
+<div class="flex-1 flex flex-col justify-end gap-sm">
+<!-- Secondary Controls -->
+<button class="w-full bg-surface-container rounded-lg p-3 shadow-[4px_4px_8px_rgba(27,28,25,0.05),-4px_-4px_8px_rgba(255,255,255,0.8),inset_1px_1px_2px_rgba(255,255,255,1)] flex items-center justify-between hover:bg-surface-bright transition-colors active:shadow-[inset_4px_4px_8px_rgba(27,28,25,0.05),inset_-4px_-4px_8px_rgba(255,255,255,0.8)]">
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-tertiary" data-icon="blinds">blinds</span>
+<span class="font-label-sm text-label-sm text-on-surface">Blinds</span>
+</div>
+<span class="font-body-md text-body-md text-on-surface-variant text-sm">Open</span>
+</button>
+<button class="w-full bg-surface-container rounded-lg p-3 shadow-[4px_4px_8px_rgba(27,28,25,0.05),-4px_-4px_8px_rgba(255,255,255,0.8),inset_1px_1px_2px_rgba(255,255,255,1)] flex items-center justify-between hover:bg-surface-bright transition-colors active:shadow-[inset_4px_4px_8px_rgba(27,28,25,0.05),inset_-4px_-4px_8px_rgba(255,255,255,0.8)]">
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-tertiary" data-icon="speaker">speaker</span>
+<span class="font-label-sm text-label-sm text-on-surface">Music</span>
+</div>
+<span class="font-body-md text-body-md text-on-surface-variant text-sm">Playing</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Climate Card (Col Span 1) -->
+<div class="bg-secondary-fixed rounded-xl p-5 shadow-[8px_8px_16px_rgba(27,28,25,0.05),-8px_-8px_16px_rgba(255,255,255,0.8),inset_2px_2px_4px_rgba(255,255,255,0.6),inset_-2px_-2px_4px_rgba(132,84,0,0.1)] flex flex-col justify-between text-on-secondary-fixed relative overflow-hidden">
+<div class="absolute -bottom-10 -right-10 text-[120px] text-secondary/10 pointer-events-none material-symbols-outlined" data-icon="thermostat" style="font-variation-settings: 'FILL' 1;">thermostat</div>
+<div class="flex justify-between items-start z-10">
+<span class="font-label-sm text-label-sm uppercase tracking-wider opacity-80">Climate</span>
+<span class="material-symbols-outlined" data-icon="air" style="font-variation-settings: 'FILL' 1;">air</span>
+</div>
+<div class="mt-xl z-10">
+<div class="font-display-lg text-display-lg mb-1">22°</div>
+<p class="font-body-md text-body-md opacity-90 text-sm">Heating to 24°</p>
+</div>
+</div>
+<!-- Security Card (Col Span 1) -->
+<div class="bg-surface-container rounded-xl p-5 shadow-[8px_8px_16px_rgba(27,28,25,0.06),-8px_-8px_16px_rgba(255,255,255,0.9),inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-1px_-1px_2px_rgba(27,28,25,0.03)] border border-white/40 flex flex-col items-center justify-center text-center gap-sm cursor-pointer hover:bg-surface-bright transition-colors active:shadow-[inset_6px_6px_12px_rgba(27,28,25,0.06),inset_-6px_-6px_12px_rgba(255,255,255,0.8)]">
+<div class="w-16 h-16 rounded-full bg-surface-container-high shadow-[inset_4px_4px_8px_rgba(27,28,25,0.05),inset_-4px_-4px_8px_rgba(255,255,255,0.6)] flex items-center justify-center mb-2">
+<span class="material-symbols-outlined text-tertiary text-3xl" data-icon="shield_locked" style="font-variation-settings: 'FILL' 1;">shield_locked</span>
+</div>
+<h3 class="font-headline-md text-headline-md text-on-surface text-lg">Armed</h3>
+<p class="font-body-md text-body-md text-on-surface-variant text-sm">All secure</p>
+</div>
+<!-- Kitchen Mini Card (Col Span 1) -->
+<div class="bg-surface-container rounded-xl p-5 shadow-[8px_8px_16px_rgba(27,28,25,0.06),-8px_-8px_16px_rgba(255,255,255,0.9),inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-1px_-1px_2px_rgba(27,28,25,0.03)] border border-white/40 flex flex-col justify-between">
+<div class="flex justify-between items-center mb-4">
+<div class="w-10 h-10 rounded-full bg-surface shadow-[4px_4px_8px_rgba(27,28,25,0.05),-4px_-4px_8px_rgba(255,255,255,0.8)] flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-sm" data-icon="cooking">cooking</span>
+</div>
+<div class="w-10 h-6 bg-surface-variant rounded-full shadow-[inset_2px_2px_4px_rgba(27,28,25,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.6)] p-1 flex items-center">
+<div class="w-4 h-4 bg-surface-container-highest rounded-full shadow-sm"></div>
+</div>
+</div>
+<div>
+<h4 class="font-headline-md text-headline-md text-base text-on-surface">Kitchen</h4>
+<p class="font-body-md text-body-md text-sm text-on-surface-variant">Off</p>
+</div>
+</div>
+<!-- Bedroom Mini Card (Col Span 1) -->
+<div class="bg-surface-container rounded-xl p-5 shadow-[8px_8px_16px_rgba(27,28,25,0.06),-8px_-8px_16px_rgba(255,255,255,0.9),inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-1px_-1px_2px_rgba(27,28,25,0.03)] border border-white/40 flex flex-col justify-between">
+<div class="flex justify-between items-center mb-4">
+<div class="w-10 h-10 rounded-full bg-surface shadow-[4px_4px_8px_rgba(27,28,25,0.05),-4px_-4px_8px_rgba(255,255,255,0.8)] flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-sm" data-icon="bed">bed</span>
+</div>
+<div class="w-10 h-6 bg-primary-container rounded-full shadow-[inset_2px_2px_4px_rgba(165,59,41,0.2),inset_-2px_-2px_4px_rgba(255,255,255,0.4)] p-1 flex items-center justify-end">
+<div class="w-4 h-4 bg-primary rounded-full shadow-sm"></div>
+</div>
+</div>
+<div>
+<h4 class="font-headline-md text-headline-md text-base text-on-surface">Bedroom</h4>
+<p class="font-body-md text-body-md text-sm text-primary">Lights On</p>
+</div>
+</div>
+</div>
+<!-- Quick Scenes (Squishy Pills) -->
+<div class="mt-xl">
+<h3 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider mb-sm px-2">Quick Scenes</h3>
+<div class="flex flex-wrap gap-sm">
+<button class="bg-surface-container text-on-surface font-label-sm text-label-sm py-3 px-6 rounded-full shadow-[6px_6px_12px_rgba(27,28,25,0.05),-6px_-6px_12px_rgba(255,255,255,0.8),inset_1px_1px_2px_rgba(255,255,255,1)] hover:bg-surface-bright transition-all active:shadow-[inset_4px_4px_8px_rgba(27,28,25,0.06),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] flex items-center gap-xs">
+<span class="material-symbols-outlined text-lg text-secondary" data-icon="routine">routine</span>
+                        Morning Wake
+                    </button>
+<button class="bg-surface-container text-on-surface font-label-sm text-label-sm py-3 px-6 rounded-full shadow-[6px_6px_12px_rgba(27,28,25,0.05),-6px_-6px_12px_rgba(255,255,255,0.8),inset_1px_1px_2px_rgba(255,255,255,1)] hover:bg-surface-bright transition-all active:shadow-[inset_4px_4px_8px_rgba(27,28,25,0.06),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] flex items-center gap-xs">
+<span class="material-symbols-outlined text-lg text-tertiary" data-icon="work">work</span>
+                        Focus Mode
+                    </button>
+<button class="bg-surface-container text-on-surface font-label-sm text-label-sm py-3 px-6 rounded-full shadow-[6px_6px_12px_rgba(27,28,25,0.05),-6px_-6px_12px_rgba(255,255,255,0.8),inset_1px_1px_2px_rgba(255,255,255,1)] hover:bg-surface-bright transition-all active:shadow-[inset_4px_4px_8px_rgba(27,28,25,0.06),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] flex items-center gap-xs">
+<span class="material-symbols-outlined text-lg text-primary" data-icon="nightlight">nightlight</span>
+                        Sleep
+                    </button>
+</div>
+</div>
+</div>
+</main>
+</body></html>

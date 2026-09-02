@@ -1,4 +1,34 @@
-.git
-node_modules
-sol-builder/sol-builder-linux-amd64
-firmware/build
+# VCS, editor state, and local configuration
+.git/
+.agents/
+.codex/
+.env
+.env.*
+!.env.example
+history/
+certs/
+infra/traefik/acme.json
+
+# Build output and dependencies not needed by root-context images
+**/node_modules/
+**/.next/
+**/out/
+apps/core/bin/
+apps/builder/bin/
+packages/firmware/build/
+packages/firmware/managed_components/
+packages/firmware/dependencies.lock
+packages/firmware/sdkconfig*
+
+# Development and test artifacts
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.venv/
+**/coverage/
+**/*.coverprofile
+**/*.test
+**/*.tsbuildinfo
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Living Room - Nestly Clay</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=Inter:wght@400;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface-container": "#f0eee9",
+                        "surface-tint": "#a53b29",
+                        "on-surface-variant": "#57423e",
+                        "tertiary": "#515f74",
+                        "outline-variant": "#dec0ba",
+                        "on-error": "#ffffff",
+                        "on-primary-fixed-variant": "#842415",
+                        "surface-dim": "#dbdad5",
+                        "surface-bright": "#fbf9f4",
+                        "outline": "#8b716d",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#643f00",
+                        "surface-container-high": "#eae8e3",
+                        "on-background": "#1b1c19",
+                        "error": "#ba1a1a",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#f5f3ee",
+                        "inverse-primary": "#ffb4a6",
+                        "surface": "#fbf9f4",
+                        "secondary-fixed": "#ffddb6",
+                        "surface-container-lowest": "#ffffff",
+                        "background": "#fbf9f4",
+                        "secondary-fixed-dim": "#ffb95a",
+                        "on-primary": "#ffffff",
+                        "on-surface": "#1b1c19",
+                        "tertiary-fixed": "#d4e4fc",
+                        "tertiary-container": "#96a5bb",
+                        "primary-fixed": "#ffdad4",
+                        "tertiary-fixed-dim": "#b8c8df",
+                        "on-secondary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#39485b",
+                        "primary-container": "#ff7e67",
+                        "on-tertiary-fixed": "#0d1c2e",
+                        "on-secondary-container": "#6f4600",
+                        "inverse-surface": "#30312e",
+                        "secondary": "#845400",
+                        "primary": "#a53b29",
+                        "secondary-container": "#feb246",
+                        "on-primary-fixed": "#3f0300",
+                        "on-primary-container": "#731709",
+                        "primary-fixed-dim": "#ffb4a6",
+                        "error-container": "#ffdad6",
+                        "surface-variant": "#e4e2dd",
+                        "surface-container-highest": "#e4e2dd",
+                        "on-tertiary-container": "#2c3b4e",
+                        "on-secondary-fixed": "#2a1800",
+                        "inverse-on-surface": "#f2f1ec"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "lg": "40px",
+                        "gutter": "16px",
+                        "xs": "4px",
+                        "sm": "12px",
+                        "xl": "64px",
+                        "md": "24px",
+                        "base": "8px",
+                        "container-padding": "24px"
+                    },
+                    fontFamily: {
+                        "body-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "display-lg": ["Plus Jakarta Sans"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Plus Jakarta Sans"]
+                    },
+                    fontSize: {
+                        "body-md": ["16px", { lineHeight: "1.5", fontWeight: "400" }],
+                        "label-sm": ["13px", { lineHeight: "1.2", letterSpacing: "0.05em", fontWeight: "600" }],
+                        "display-lg": ["40px", { lineHeight: "1.2", letterSpacing: "-0.02em", fontWeight: "700" }],
+                        "body-lg": ["18px", { lineHeight: "1.5", fontWeight: "400" }],
+                        "headline-md": ["24px", { lineHeight: "1.3", fontWeight: "600" }]
+                    }
+                }
+            }
+        };
+    </script>
+</head>
+<body class="bg-background text-on-background min-h-screen font-body-md overflow-x-hidden selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full rounded-b-[40px] px-6 py-4 flex justify-between items-center max-w-full z-50 bg-orange-50/50 dark:bg-stone-900/50 backdrop-blur-md shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),0_10px_30px_rgba(255,126,103,0.1)] shadow-xl lg:left-72 lg:w-[calc(100%-18rem)]">
+<div class="text-2xl font-black text-orange-600 dark:text-orange-500 italic font-display-lg tracking-tight">Nestly Clay</div>
+<div class="flex items-center gap-sm">
+<!-- Search Bar (Sunken Clay) -->
+<div class="relative hidden sm:block shadow-[inset_4px_4px_8px_rgba(87,66,62,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.9)] rounded-full px-4 py-2 bg-surface-container">
+<span class="material-symbols-outlined text-outline absolute left-3 top-1/2 -translate-y-1/2">search</span>
+<input class="bg-transparent border-none outline-none pl-8 text-body-md text-on-surface w-48 font-body-md placeholder:text-outline-variant" placeholder="Search devices..." type="text"/>
+</div>
+<button class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center shadow-[4px_4px_8px_rgba(87,66,62,0.1),-4px_-4px_8px_rgba(255,255,255,0.9)] text-orange-500 dark:text-orange-400 hover:scale-105 transition-transform duration-300 active:scale-95">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">notifications</span>
+</button>
+<button class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center shadow-[4px_4px_8px_rgba(87,66,62,0.1),-4px_-4px_8px_rgba(255,255,255,0.9)] text-orange-500 dark:text-orange-400 hover:scale-105 transition-transform duration-300 active:scale-95">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">settings</span>
+</button>
+<img alt="User profile" class="w-10 h-10 rounded-full shadow-[4px_4px_8px_rgba(87,66,62,0.1),-4px_-4px_8px_rgba(255,255,255,0.9)] border-2 border-white/60 hover:scale-105 transition-transform duration-300 cursor-pointer" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAgwv2XqyWhEKqnZkKkZmX4v2mC4RQn8WCRkrTZMB_2oodx9DrXaJORzYj323ZB5ntq887hjejQGZXNgfLkiN5kfwXq7tYGmIt2uWhKPT9AQZ10jFACeq0kHwmMCm0SO1FVJlYKaIibbl41p4ZBSrpefYz4qyX6PQFa6lScXA4iqpDjdj9Xrf2qDR5zjqLs3t9KhKkW7Av6aZ964ZcON6ZZKFZGu_7JHSmSHfe_QP-gQGheKiAsoArE4b9RMJ-lAFyN1rvG_McYy2el"/>
+</div>
+</header>
+<!-- SideNavBar -->
+<nav class="hidden lg:flex fixed left-0 top-0 h-screen flex-col p-6 z-40 bg-stone-100 dark:bg-stone-800 w-72 rounded-r-[50px] shadow-[20px_0_40px_rgba(0,0,0,0.05)] border-r border-white/20 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.05),inset_-4px_-4px_8px_rgba(255,255,255,0.9)]">
+<!-- Header Profile -->
+<div class="flex items-center gap-4 mb-8 p-3 rounded-2xl shadow-[4px_4px_8px_rgba(0,0,0,0.05),-4px_-4px_8px_rgba(255,255,255,0.9)] bg-surface-container-low border border-white/40">
+<div class="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center shadow-[inset_2px_2px_4px_rgba(255,255,255,0.6),inset_-2px_-2px_4px_rgba(0,0,0,0.1)]">
+<span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1;">home</span>
+</div>
+<div>
+<h2 class="font-headline-md text-headline-md text-stone-800 dark:text-stone-100 text-lg">Sweet Home</h2>
+<p class="font-label-sm text-label-sm text-stone-500 font-normal">4 devices active</p>
+</div>
+</div>
+<!-- Navigation Tabs -->
+<div class="flex flex-col gap-2 flex-grow">
+<!-- Living Room (Active) -->
+<a class="bg-white dark:bg-stone-700 text-orange-600 shadow-[6px_6px_12px_rgba(0,0,0,0.1),-6px_-6px_12px_rgba(255,255,255,0.8)] rounded-[24px] m-2 flex items-center p-4 font-plus-jakarta text-base font-semibold hover:scale-105 transition-transform duration-300 active:scale-95 border border-white/50 relative overflow-hidden" href="#">
+<div class="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-orange-400 rounded-r-full"></div>
+<span class="material-symbols-outlined mr-3 text-xl" style="font-variation-settings: 'FILL' 1;">chair</span>
+                Living Room
+            </a>
+<!-- Inactive Tabs -->
+<a class="text-stone-500 dark:text-stone-400 m-2 flex items-center p-4 opacity-70 font-plus-jakarta text-base font-semibold hover:bg-orange-50 dark:hover:bg-stone-700/50 transition-colors rounded-[24px]" href="#">
+<span class="material-symbols-outlined mr-3 text-xl">cooking</span>
+                Kitchen
+            </a>
+<a class="text-stone-500 dark:text-stone-400 m-2 flex items-center p-4 opacity-70 font-plus-jakarta text-base font-semibold hover:bg-orange-50 dark:hover:bg-stone-700/50 transition-colors rounded-[24px]" href="#">
+<span class="material-symbols-outlined mr-3 text-xl">bed</span>
+                Bedroom
+            </a>
+<a class="text-stone-500 dark:text-stone-400 m-2 flex items-center p-4 opacity-70 font-plus-jakarta text-base font-semibold hover:bg-orange-50 dark:hover:bg-stone-700/50 transition-colors rounded-[24px]" href="#">
+<span class="material-symbols-outlined mr-3 text-xl">group</span>
+                Family
+            </a>
+<a class="text-stone-500 dark:text-stone-400 m-2 flex items-center p-4 opacity-70 font-plus-jakarta text-base font-semibold hover:bg-orange-50 dark:hover:bg-stone-700/50 transition-colors rounded-[24px]" href="#">
+<span class="material-symbols-outlined mr-3 text-xl">bolt</span>
+                Energy
+            </a>
+</div>
+<!-- CTA Button -->
+<button class="mt-auto bg-surface-container text-primary font-plus-jakarta text-base font-semibold p-4 rounded-[24px] shadow-[4px_4px_8px_rgba(0,0,0,0.05),-4px_-4px_8px_rgba(255,255,255,0.9)] flex items-center justify-center hover:scale-105 transition-transform active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.1),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] border border-white/40">
+<span class="material-symbols-outlined mr-2">add</span> Add New Room
+        </button>
+</nav>
+<!-- Main Canvas -->
+<main class="pt-32 pb-12 px-6 lg:ml-72 min-h-screen relative">
+<div class="max-w-6xl mx-auto space-y-md">
+<!-- Page Header -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-xl gap-6">
+<div>
+<h1 class="font-display-lg text-display-lg text-on-surface">Living Room</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mt-2 max-w-lg">Manage central hub connectivity and adjust ambient settings for your comfort.</p>
+</div>
+<!-- Master Toggle (Squishy Clay) -->
+<div class="flex items-center gap-3 bg-surface-container p-2 pr-5 rounded-full shadow-[inset_4px_4px_8px_rgba(87,66,62,0.08),inset_-4px_-4px_8px_rgba(255,255,255,0.9)] border border-white/50 cursor-pointer group">
+<div class="w-12 h-12 rounded-full bg-primary-container shadow-[4px_4px_8px_rgba(87,66,62,0.15),-4px_-4px_8px_rgba(255,255,255,0.9)] flex items-center justify-center group-active:shadow-[inset_2px_2px_4px_rgba(87,66,62,0.2),inset_-2px_-2px_4px_rgba(255,255,255,0.5)] transition-shadow">
+<span class="material-symbols-outlined text-on-primary-container text-xl" style="font-variation-settings: 'FILL' 1;">power_settings_new</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Master Off</span>
+</div>
+</div>
+<!-- Bento Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-md">
+<!-- PRIMARY CARD: Switchboard (ESP32) -->
+<div class="lg:col-span-2 bg-surface-container rounded-xl p-8 shadow-[12px_12px_24px_rgba(87,66,62,0.08),-12px_-12px_24px_rgba(255,255,255,0.9)] border border-white/60 relative overflow-hidden flex flex-col justify-between min-h-[420px]">
+<!-- Soft gradient background element -->
+<div class="absolute -top-32 -right-32 w-96 h-96 bg-primary-container/30 rounded-full blur-[80px] pointer-events-none"></div>
+<!-- Header & Status -->
+<div class="flex flex-col sm:flex-row justify-between items-start gap-4 relative z-10">
+<div class="flex items-center gap-5">
+<div class="w-20 h-20 rounded-[1.5rem] bg-surface shadow-[inset_2px_2px_4px_rgba(255,255,255,0.8),4px_4px_12px_rgba(87,66,62,0.1)] flex items-center justify-center border border-white/50">
+<span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings: 'FILL' 1;">router</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-1">Main Switchboard</h3>
+<div class="flex items-center gap-2 bg-surface-container-low px-3 py-1.5 rounded-full shadow-[inset_2px_2px_4px_rgba(87,66,62,0.05),inset_-2px_-2px_4px_rgba(255,255,255,0.9)] w-fit">
+<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Online • ESP32 Node</span>
+</div>
+</div>
+</div>
+<div class="p-3 rounded-full bg-surface shadow-[4px_4px_8px_rgba(87,66,62,0.05),-4px_-4px_8px_rgba(255,255,255,0.8)] border border-white/40 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">wifi</span>
+</div>
+</div>
+<!-- Telemetry Stats (Sunken Fields) -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-sm mt-8 relative z-10">
+<div class="bg-surface-container-high rounded-xl p-5 shadow-[inset_4px_4px_8px_rgba(87,66,62,0.06),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] border border-white/20">
+<p class="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-2">IP Address</p>
+<p class="font-body-lg text-body-lg text-on-surface font-semibold tracking-tight">192.168.1.142</p>
+</div>
+<div class="bg-surface-container-high rounded-xl p-5 shadow-[inset_4px_4px_8px_rgba(87,66,62,0.06),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] border border-white/20">
+<p class="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-2">Firmware</p>
+<p class="font-body-lg text-body-lg text-on-surface font-semibold tracking-tight">v2.4.1-stable</p>
+</div>
+<div class="bg-surface-container-high rounded-xl p-5 shadow-[inset_4px_4px_8px_rgba(87,66,62,0.06),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] border border-white/20">
+<p class="font-label-sm text-label-sm text-outline uppercase tracking-wider mb-2">Uptime</p>
+<p class="font-body-lg text-body-lg text-on-surface font-semibold tracking-tight">14d 06h 22m</p>
+</div>
+</div>
+<!-- Maintenance Actions -->
+<div class="mt-10 pt-6 border-t border-outline-variant/30 relative z-10">
+<h4 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">build</span> Device Maintenance
+                        </h4>
+<div class="flex flex-col sm:flex-row gap-5">
+<!-- OTA Update Button (Primary Protruding) -->
+<button class="flex-1 bg-primary-container text-on-primary-container rounded-xl p-5 shadow-[6px_6px_16px_rgba(165,59,41,0.2),-6px_-6px_16px_rgba(255,255,255,0.9)] border border-white/40 flex items-center gap-4 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 group">
+<div class="w-12 h-12 rounded-full bg-surface/30 flex items-center justify-center shadow-[inset_2px_2px_4px_rgba(255,255,255,0.5)]">
+<span class="material-symbols-outlined text-2xl">cloud_download</span>
+</div>
+<div class="text-left">
+<span class="block font-body-lg text-body-lg font-semibold leading-tight">OTA Update</span>
+<span class="block font-label-sm text-label-sm opacity-80 mt-1">Flash remotely via Wi-Fi</span>
+</div>
+</button>
+<!-- WebSerial USB Button (Secondary Flat/Sunken) -->
+<button class="flex-1 bg-surface text-primary rounded-xl p-5 shadow-[4px_4px_12px_rgba(87,66,62,0.06),-4px_-4px_12px_rgba(255,255,255,0.8)] border border-outline-variant/40 flex items-center gap-4 hover:bg-surface-bright active:shadow-[inset_4px_4px_8px_rgba(87,66,62,0.08),inset_-4px_-4px_8px_rgba(255,255,255,0.9)] transition-all duration-300 group">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center shadow-[inset_2px_2px_4px_rgba(87,66,62,0.05),inset_-2px_-2px_4px_rgba(255,255,255,0.8)]">
+<span class="material-symbols-outlined text-2xl">usb</span>
+</div>
+<div class="text-left">
+<span class="block font-body-lg text-body-lg font-semibold leading-tight text-on-surface">Flash via USB</span>
+<span class="block font-label-sm text-label-sm text-outline mt-1">Local WebSerial connection</span>
+</div>
+</button>
+</div>
+</div>
+</div>
+<!-- SECONDARY CARDS COLUMN -->
+<div class="flex flex-col gap-md">
+<!-- Ambient Light Card -->
+<div class="bg-surface-container rounded-xl p-6 shadow-[8px_8px_16px_rgba(87,66,62,0.08),-8px_-8px_16px_rgba(255,255,255,0.9)] border border-white/50 flex-1 flex flex-col justify-between">
+<div class="flex justify-between items-start mb-6">
+<div class="w-14 h-14 rounded-full bg-secondary-container flex items-center justify-center shadow-[inset_2px_2px_6px_rgba(255,255,255,0.6),4px_4px_8px_rgba(87,66,62,0.1)] border border-white/30">
+<span class="material-symbols-outlined text-on-secondary-container text-3xl" style="font-variation-settings: 'FILL' 1;">lightbulb</span>
+</div>
+<!-- Clay Toggle -->
+<div class="w-16 h-9 bg-primary rounded-full shadow-[inset_3px_3px_6px_rgba(0,0,0,0.2),inset_-3px_-3px_6px_rgba(255,255,255,0.2)] p-1.5 flex items-center justify-end cursor-pointer transition-colors">
+<div class="w-6 h-6 bg-white rounded-full shadow-[2px_2px_4px_rgba(0,0,0,0.2),-1px_-1px_2px_rgba(255,255,255,0.8)]"></div>
+</div>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Ambient Lights</h3>
+<!-- Brightness Slider Track (Sunken) -->
+<div class="mb-2 flex justify-between font-label-sm text-label-sm text-on-surface-variant">
+<span>Brightness</span>
+<span class="font-bold">75%</span>
+</div>
+<div class="h-8 bg-surface-container-high rounded-full shadow-[inset_4px_4px_8px_rgba(87,66,62,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.8)] overflow-hidden p-1.5 flex cursor-pointer">
+<!-- Protruding Slider Fill -->
+<div class="h-full bg-secondary w-3/4 rounded-full shadow-[2px_0_6px_rgba(87,66,62,0.2),inset_1px_1px_2px_rgba(255,255,255,0.4)] relative">
+<div class="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-sm"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Ceiling Fan Card -->
+<div class="bg-surface-container rounded-xl p-6 shadow-[8px_8px_16px_rgba(87,66,62,0.08),-8px_-8px_16px_rgba(255,255,255,0.9)] border border-white/50 flex-1 flex flex-col justify-between">
+<div class="flex justify-between items-start mb-6">
+<div class="w-14 h-14 rounded-full bg-tertiary-container flex items-center justify-center shadow-[inset_2px_2px_6px_rgba(255,255,255,0.6),4px_4px_8px_rgba(87,66,62,0.1)] border border-white/30">
+<span class="material-symbols-outlined text-on-tertiary-container text-3xl" style="font-variation-settings: 'FILL' 1;">mode_fan</span>
+</div>
+<!-- Clay Toggle (Off state) -->
+<div class="w-16 h-9 bg-surface-container-high rounded-full shadow-[inset_3px_3px_6px_rgba(87,66,62,0.1),inset_-3px_-3px_6px_rgba(255,255,255,0.8)] p-1.5 flex items-center cursor-pointer border border-white/20">
+<div class="w-6 h-6 bg-surface rounded-full shadow-[2px_2px_4px_rgba(87,66,62,0.1),-2px_-2px_4px_rgba(255,255,255,0.9)] border border-white/50"></div>
+</div>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-4">Ceiling Fan</h3>
+<!-- Speed Pills -->
+<div class="flex gap-3 bg-surface-container-high p-2 rounded-[1.25rem] shadow-[inset_4px_4px_8px_rgba(87,66,62,0.06),inset_-4px_-4px_8px_rgba(255,255,255,0.8)]">
+<div class="flex-1 py-2 text-center rounded-lg font-label-sm text-label-sm text-outline cursor-pointer hover:bg-surface/50 transition-colors">1</div>
+<!-- Active Pill -->
+<div class="flex-1 py-2 text-center rounded-lg bg-surface shadow-[2px_2px_6px_rgba(87,66,62,0.08),-2px_-2px_6px_rgba(255,255,255,0.9)] font-label-sm text-label-sm text-tertiary font-bold cursor-pointer border border-white/60">2</div>
+<div class="flex-1 py-2 text-center rounded-lg font-label-sm text-label-sm text-outline cursor-pointer hover:bg-surface/50 transition-colors">3</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- System Logs Module -->
+<section class="mt-xl bg-surface-container rounded-xl p-8 shadow-[8px_8px_16px_rgba(87,66,62,0.05),-8px_-8px_16px_rgba(255,255,255,0.8)] border border-white/40">
+<div class="flex justify-between items-center mb-6 border-b border-outline-variant/30 pb-4">
+<h3 class="font-headline-md text-headline-md text-on-surface">Recent Activity</h3>
+<button class="font-label-sm text-label-sm text-primary hover:text-primary-container transition-colors">View All Logs</button>
+</div>
+<div class="space-y-4">
+<!-- Log Item -->
+<div class="flex items-center gap-5 p-4 rounded-xl bg-surface shadow-[inset_2px_2px_6px_rgba(87,66,62,0.03),inset_-2px_-2px_6px_rgba(255,255,255,0.9)] border border-white/30">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center shadow-[2px_2px_4px_rgba(87,66,62,0.05)]">
+<span class="material-symbols-outlined text-tertiary">update</span>
+</div>
+<div class="flex-1">
+<p class="font-body-md text-body-md text-on-surface font-medium">OTA Firmware Update Completed</p>
+<p class="font-label-sm text-label-sm text-outline mt-0.5">Today at 10:42 AM • Triggered via Web Interface</p>
+</div>
+<span class="px-4 py-1.5 bg-tertiary-fixed text-on-tertiary-fixed rounded-full font-label-sm text-label-sm shadow-[2px_2px_4px_rgba(87,66,62,0.05)] border border-white/50">Success</span>
+</div>
+<!-- Log Item -->
+<div class="flex items-center gap-5 p-4 rounded-xl bg-surface shadow-[inset_2px_2px_6px_rgba(87,66,62,0.03),inset_-2px_-2px_6px_rgba(255,255,255,0.9)] border border-white/30">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center shadow-[2px_2px_4px_rgba(87,66,62,0.05)]">
+<span class="material-symbols-outlined text-outline">wifi_off</span>
+</div>
+<div class="flex-1">
+<p class="font-body-md text-body-md text-on-surface font-medium">Switchboard lost connection</p>
+<p class="font-label-sm text-label-sm text-outline mt-0.5">Yesterday at 11:15 PM • Duration: 2m 14s</p>
+</div>
+<span class="px-4 py-1.5 bg-error-container text-on-error-container rounded-full font-label-sm text-label-sm shadow-[2px_2px_4px_rgba(87,66,62,0.05)] border border-white/50">Recovered</span>
+</div>
+</div>
+</section>
+</div>
+</main>
+</body></html>

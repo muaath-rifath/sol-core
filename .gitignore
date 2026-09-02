@@ -1,48 +1,55 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# Environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+/certs/*
+!/certs/.gitkeep
+/infra/traefik/acme.json
 
-# Test binary, built with `go test -c`
+# Local build artifacts
+/apps/core/bin/
+/apps/builder/bin/
+/apps/web/.next/
+/apps/web/out/
+/apps/web/node_modules/
+/apps/web/coverage/
+/apps/web/*.tsbuildinfo
+/packages/firmware/build/
+/packages/firmware/managed_components/
+/packages/firmware/dependencies.lock
+/packages/firmware/sdkconfig
+/packages/firmware/sdkconfig.old
+/packages/firmware/sdkconfig.bak
+/packages/firmware/sdkconfig.pre_kconf_fix.bak
+/packages/firmware/sdkconfig.bak.before_kconfig_fix
+
+# Test output and language caches
 *.test
-
-# Code coverage profiles and other test artifacts
 *.out
 coverage.*
 *.coverprofile
 profile.cov
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
+# Local tooling and migration archives
 go.work
 go.work.sum
+/history/
+.DS_Store
+.idea/
+.vscode/
 
-# env file
-.env
-
-# Traefik SSL certificates — never commit
-traefik/acme.json
-
-# Zitadel private key files — never commit
-*.json
-
-# Editor/IDE
-# .idea/
-# .vscode/
-
-# ESP-IDF
-firmware/build/
-firmware/managed_components/
-firmware/dependencies.lock
-firmware/sdkconfig
-firmware/sdkconfig.old
-firmware/sdkconfig.bak
-firmware/sdkconfig.pre_kconf_fix.bak
-firmware/sdkconfig.bak.before_kconfig_fix
+# OS and editor temporary files
+*~
+*.swp
+*.swo

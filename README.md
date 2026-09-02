@@ -1,673 +1,161 @@
-# sol-core
+# Sol
 
-Backend API for the Sol home automation platform. Built with Go, PostgreSQL (TimescaleDB), Redis, MQTT (VerneMQ), and MinIO.
+Sol is a monorepo for the home-automation platform. It manages homes, rooms, appliances and devices; sends device commands through MQTT; stores telemetry; builds and distributes ESP32 firmware; and provides automation, chat, MCP, and voice-session integrations.
 
-## Frontend Repository
+The machine-readable HTTP reference is [apps/core/api/openapi.yaml](apps/core/api/openapi.yaml).
 
-https://github.com/muaath-rifath/sol-nextjs
+## Architecture
 
-## Authentication
+```text
+Sol frontend / MCP clients ──HTTP + WebSocket──> sol-core
+                                               ├── PostgreSQL + TimescaleDB
+                                               ├── Redis
+                                               ├── MinIO (firmware artifacts)
+                                               └── MQTT broker (mTLS)
 
-All endpoints require a Bearer token issued by Zitadel.
-
+ESP32 devices ────────────────────────────────MQTT──┘
+Firmware build requests ──Redis queue──> sol-builder ──> ESP-IDF
+Voice sessions ──> LiveKit + sol-agent
 ```
+
+## What is in this repository
+
+| Path | Purpose |
+| --- | --- |
+| `apps/core` | Go API server, OpenAPI spec, and Goose migrations |
+| `apps/web` | Next.js web client |
+| `apps/builder` | Redis-backed ESP-IDF firmware-build worker |
+| `apps/agent` | LiveKit voice agent (`Joy`) |
+| `packages/firmware` | ESP-IDF firmware source and components |
+| `infra/` | Dockerfiles and Traefik configuration |
+| `docker-compose.yml` | Root local-development and deployment stack |
+
+## Prerequisites
+
+- Go **1.26**
+- Docker Engine with Docker Compose
+- An OIDC/Zitadel issuer for production authentication
+
+Optional capabilities also need their respective credentials: Azure/Kimi and Cohere for AI features, Brevo for invitation email, and LiveKit plus Azure OpenAI Realtime for voice sessions.
+
+## Local development
+
+`docker compose up --build` starts a usable local stack with PostgreSQL, Redis, MinIO, VerneMQ, Goose migrations, Sol Core, the firmware builder, and Sol Next. It generates a development CA and uses a local-development account, so no external credentials are required for the default path.
+
+To customize values, copy the checked-in environment template. `.env` overrides the template and is ignored by Git; never commit credentials.
+
+```bash
+cp .env.example .env
+```
+
+```bash
+docker compose up --build
+```
+
+Open `http://localhost:3000`, select **Log in / Sign up**, and use the generated local account. The API is available at `http://localhost:8080`.
+
+### Adopting an existing database
+
+Databases created with the retired migration script have no Goose history. Do this once **before** running the new migration service, using the last migration that is already present in that database. For a database maintained by the previous script, that version is `17`:
+
+```bash
+./scripts/adopt-goose.sh 17
+./scripts/migrate.sh
+```
+
+The adoption script refuses to run if Goose has already been initialized. Confirm the version from your deployment history before using a value other than `17`.
+
+The development server listens on `http://localhost:8080`. Confirm it is running:
+
+```bash
+curl http://localhost:8080/healthz
+# {"status":"ok"}
+```
+
+The Compose stack provides a development VerneMQ broker at `tcp://vernemq:1883`. It allows anonymous TCP connections and is suitable only for local development. Production should use an `ssl://` or `tls://` broker URL; Sol Core then requires mTLS and validates the broker against `CA_CERT_PATH`.
+
+### Full Compose stack
+
+The default command intentionally excludes externally dependent services. Add the `voice` profile after configuring LiveKit and Azure credentials; add the `edge` profile for Traefik and public TLS after configuring `API_DOMAIN`, `ACME_EMAIL`, a real OIDC issuer, and production certificate material:
+
+```bash
+docker compose --profile voice --profile edge up --build
+```
+
+Traefik exposes ports 80 and 443. It forwards requests for `API_DOMAIN` to `sol-core`.
+
+## Configuration
+
+The API reads configuration from environment variables. Defaults are intended for local development where noted.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `8080` | HTTP listener port |
+| `DATABASE_URL` | local `sol` PostgreSQL URL | PostgreSQL/TimescaleDB connection |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis connection and build queue |
+| `MQTT_BROKER_URL` | configured Sol broker URL | MQTT broker URL (`ssl://` for mTLS) |
+| `MQTT_CLIENT_ID` | `sol-backend` | Backend MQTT client ID |
+| `CA_CERT_PATH` / `CA_KEY_PATH` | — | CA certificate and private key used to issue device/client certificates; both are required |
+| `MINIO_ENDPOINT` | `localhost:9000` | MinIO/S3 endpoint |
+| `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` | `minioadmin` | Object-storage credentials |
+| `MINIO_USE_SSL` | `false` | Enable TLS for MinIO when set to `true` |
+| `MINIO_BUCKET` | `firmware` | Firmware artifact bucket; created at startup if absent |
+| `OIDC_ISSUER` | — | Zitadel/OIDC issuer; used for userinfo lookups and Traefik ForwardAuth |
+| `INTERNAL_SERVICE_TOKEN` | — | Required bearer token for internal builder and voice-agent calls |
+| `FRONTEND_URL` | `http://localhost:3000` | Base URL used in invitation emails |
+| `PUBLIC_API_URL` | `http://localhost:8080` | API URL included in OTA flows |
+| `OTA_API_URL` | configured Sol OTA URL | mTLS-protected OTA host used by devices |
+| `OTA_ONLINE_FRESHNESS_SEC` | `45` | Maximum age of a device heartbeat for OTA eligibility |
+| `OTA_ATTEMPT_TIMEOUT_SEC` | `480` | OTA-attempt timeout |
+| `AI_SERVICE_URL` | `http://localhost:8000` | Automation AI service endpoint |
+| `KIMI_ENDPOINT`, `KIMI_API_KEY`, `KIMI_DEPLOYMENT` | —, —, `Kimi-K2.6` | Chat model configuration |
+| `COHERE_AZURE_ENDPOINT`, `COHERE_AZURE_KEY`, `COHERE_AZURE_DEPLOYMENT`, `COHERE_API_VERSION` | deployment defaults | Appliance embeddings configuration |
+| `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, `BREVO_SENDER_NAME` | email disabled without key | Invitation email delivery |
+| `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | service URL / empty keys | Voice-session management |
+
+## API and authentication
+
+Use [apps/core/api/openapi.yaml](apps/core/api/openapi.yaml) for documented HTTP schemas; it is suitable for Swagger UI, Redoc, Postman, and code-generation tools. The route registration in `apps/core/cmd/sol/main.go` is the definitive runtime surface while the specification is brought fully in sync.
+
+The API surface includes:
+
+- homes, members, invitations, per-room member permissions, and ownership transfer;
+- rooms, activity history, devices, appliances, telemetry, and live device commands;
+- automations, firmware uploads/builds/versions, and OTA attempt management;
+- WebSocket updates at `/ws`, chat WebSocket sessions, and MCP-over-SSE;
+- device provisioning and certificate issuance, plus public and mTLS-protected OTA downloads.
+
+Except for the health endpoint, selected invitation endpoints, and OTA endpoints, routes require an OIDC access token:
+
+```http
 Authorization: Bearer <access_token>
 ```
 
-On every authenticated request, the user is automatically upserted into the `users` table from the OIDC claims.
+In the Compose deployment, Traefik validates API bearer tokens with the issuer’s `/oidc/v1/userinfo` endpoint before forwarding requests. The application also derives the current Sol user from token claims. WebSocket clients may provide the token as `?token=` because browsers cannot set arbitrary headers during a WebSocket upgrade.
 
----
+## Firmware, builds, and voice
 
-## Base URL
+`sol-builder` waits on the Redis `firmware_build_queue`, builds the ESP-IDF project in `packages/firmware/`, streams build logs to internal API endpoints, and stores produced artifacts through the core API. It uses `INTERNAL_SERVICE_TOKEN` for those internal requests.
 
-```
-http://localhost:8080
-```
+`sol-agent` is a LiveKit worker that powers the Joy voice assistant. It calls the internal voice context and tool-dispatch endpoints exposed by `sol-core` using `INTERNAL_SERVICE_TOKEN`. Configure the required LiveKit and Azure OpenAI environment variables before enabling it.
 
----
+## Verify changes
 
-## Endpoints
+Run the Go tests and build before opening a pull request:
 
-### Health
-
-#### `GET /healthz`
-
-No auth required.
-
-**Response `200`**
-```json
-{ "status": "ok" }
+```bash
+go -C apps/core test ./...
+go -C apps/core build ./cmd/sol
 ```
 
----
+For the firmware worker:
 
-### Users
-
-#### `GET /api/v1/me`
-
-Returns the currently authenticated user.
-
-**Response `200`**
-```json
-{
-  "id": "uuid",
-  "keycloak_id": "zitadel-subject-id",
-  "email": "user@example.com",
-  "name": "Jane Doe",
-  "created_at": "2026-04-09T10:00:00Z",
-  "updated_at": "2026-04-09T10:00:00Z"
-}
+```bash
+go -C apps/builder build ./...
 ```
 
----
-
-### Homes
-
-#### `POST /api/v1/homes`
-
-Create a new home. The caller becomes the owner and is automatically added as a member with role `owner`.
-
-**Request**
-```json
-{ "name": "My House" }
-```
-
-**Response `201`**
-```json
-{
-  "id": "uuid",
-  "name": "My House",
-  "owner_id": "user-uuid",
-  "created_at": "2026-04-09T10:00:00Z",
-  "updated_at": "2026-04-09T10:00:00Z"
-}
-```
-
----
-
-#### `GET /api/v1/homes`
-
-List all homes the current user is a member of.
-
-**Response `200`**
-```json
-[
-  {
-    "id": "uuid",
-    "name": "My House",
-    "owner_id": "user-uuid",
-    "created_at": "2026-04-09T10:00:00Z",
-    "updated_at": "2026-04-09T10:00:00Z"
-  }
-]
-```
-
----
-
-#### `GET /api/v1/homes/{id}`
-
-Get a single home. The caller must be a member.
-
-**Response `200`**
-```json
-{
-  "id": "uuid",
-  "name": "My House",
-  "owner_id": "user-uuid",
-  "created_at": "2026-04-09T10:00:00Z",
-  "updated_at": "2026-04-09T10:00:00Z"
-}
-```
-
-**Errors**
-- `403` — not a member of this home
-- `404` — home not found
-
----
-
-#### `PUT /api/v1/homes/{id}`
-
-Update a home's name. Requires role `owner` or `admin`.
-
-**Request**
-```json
-{ "name": "Beach House" }
-```
-
-**Response `200`**
-```json
-{
-  "id": "uuid",
-  "name": "Beach House",
-  "owner_id": "user-uuid",
-  "created_at": "2026-04-09T10:00:00Z",
-  "updated_at": "2026-04-09T10:30:00Z"
-}
-```
-
-**Errors**
-- `403` — not owner or admin
-- `404` — home not found
-
----
-
-#### `DELETE /api/v1/homes/{id}`
-
-Delete a home. Requires role `owner`. Cascades to members and invitations.
-
-**Response `204`** — no body
-
-**Errors**
-- `403` — not the owner
-
----
-
-### Home Members
-
-#### `GET /api/v1/homes/{id}/members`
-
-List all members of a home. Caller must be a member.
-
-**Response `200`**
-```json
-[
-  {
-    "home_id": "uuid",
-    "user_id": "uuid",
-    "user_email": "jane@example.com",
-    "user_name": "Jane Doe",
-    "role": "owner",
-    "invited_by": null,
-    "joined_at": "2026-04-09T10:00:00Z"
-  },
-  {
-    "home_id": "uuid",
-    "user_id": "uuid",
-    "user_email": "bob@example.com",
-    "user_name": "Bob Smith",
-    "role": "member",
-    "invited_by": "jane-user-uuid",
-    "joined_at": "2026-04-09T11:00:00Z"
-  }
-]
-```
-
-**Errors**
-- `403` — not a member of this home
-
----
-
-#### `POST /api/v1/homes/{id}/members`
-
-Add a user directly by their Sol user ID. Requires role `owner` or `admin`. Role `owner` cannot be assigned.
-
-**Request**
-```json
-{
-  "user_id": "target-user-uuid",
-  "role": "member"
-}
-```
-
-`role` is optional, defaults to `"member"`. Valid values: `"admin"`, `"member"`.
-
-**Response `201`**
-```json
-{
-  "home_id": "uuid",
-  "user_id": "uuid",
-  "role": "member",
-  "invited_by": "actor-user-uuid",
-  "joined_at": "2026-04-09T11:00:00Z"
-}
-```
-
-**Errors**
-- `403` — not owner or admin, or attempted to assign `owner` role
-
----
-
-#### `PATCH /api/v1/homes/{id}/members/{userId}/role`
-
-Change a member's role. Requires role `owner`. Cannot promote to or demote from `owner`.
-
-**Request**
-```json
-{ "role": "admin" }
-```
-
-Valid values: `"admin"`, `"member"`.
-
-**Response `204`** — no body
-
-**Errors**
-- `403` — not owner, or trying to change owner's role, or assigning `owner`
-- `404` — member not found
-
----
-
-#### `DELETE /api/v1/homes/{id}/members/{userId}`
-
-Remove a member from a home. Owners cannot be removed. A user can remove themselves (leave). `owner` or `admin` can remove any non-owner member.
-
-**Response `204`** — no body
-
-**Errors**
-- `403` — insufficient role, or attempting to remove the owner
-- `404` — member not found
-
----
-
-### Home Invitations
-
-Invitations are email-addressed and expire after 7 days. The invitee's email must match the email on their Sol account when accepting.
-
-#### `POST /api/v1/homes/{id}/invitations`
-
-Invite a user by email. Requires role `owner` or `admin`.
-
-**Request**
-```json
-{ "email": "newuser@example.com" }
-```
-
-**Response `201`**
-```json
-{
-  "id": "uuid",
-  "home_id": "uuid",
-  "inviter_id": "user-uuid",
-  "invitee_email": "newuser@example.com",
-  "token": "a3f8c2...(64 hex chars)",
-  "status": "pending",
-  "expires_at": "2026-04-16T10:00:00Z",
-  "created_at": "2026-04-09T10:00:00Z"
-}
-```
-
-> The `token` is only returned on creation. Share it out-of-band (email, link, etc.).
-
-**Errors**
-- `403` — not owner or admin
-
----
-
-#### `GET /api/v1/homes/{id}/invitations`
-
-List all invitations for a home. Requires role `owner` or `admin`. Tokens are not included in list responses.
-
-**Response `200`**
-```json
-[
-  {
-    "id": "uuid",
-    "home_id": "uuid",
-    "inviter_id": "user-uuid",
-    "invitee_email": "newuser@example.com",
-    "status": "pending",
-    "expires_at": "2026-04-16T10:00:00Z",
-    "created_at": "2026-04-09T10:00:00Z"
-  }
-]
-```
-
-**Errors**
-- `403` — not owner or admin
-
----
-
-#### `DELETE /api/v1/homes/{id}/invitations/{invId}`
-
-Cancel a pending invitation. Requires role `owner` or `admin`.
-
-**Response `204`** — no body
-
-**Errors**
-- `403` — not owner or admin, or invitation belongs to a different home
-- `404` — invitation not found
-- `409` — invitation is not in `pending` status
-
----
-
-#### `POST /api/v1/invitations/{token}/accept`
-
-Accept an invitation. The authenticated user's email must match the invitation's `invitee_email`. The user is added as a `member` of the home.
-
-**No request body.**
-
-**Response `200`**
-```json
-{
-  "id": "uuid",
-  "name": "My House",
-  "owner_id": "user-uuid",
-  "created_at": "2026-04-09T10:00:00Z",
-  "updated_at": "2026-04-09T10:00:00Z"
-}
-```
-
-**Errors**
-- `403` — your email does not match the invitation
-- `404` — token not found
-- `409` — invitation already used or expired
-
----
-
-#### `POST /api/v1/invitations/{token}/decline`
-
-Decline an invitation. The authenticated user's email must match the invitation's `invitee_email`.
-
-**No request body.**
-
-**Response `204`** — no body
-
-**Errors**
-- `403` — your email does not match the invitation
-- `404` — token not found
-- `409` — invitation already used or expired
-
----
-
-### Devices
-
-#### `GET /api/v1/devices`
-
-List all devices.
-
-**Response `200`**
-```json
-[
-  {
-    "id": "uuid",
-    "name": "Living Room Light",
-    "type": "light",
-    "room_id": "uuid",
-    "state": { "brightness": 80, "on": true },
-    "metadata": { "manufacturer": "Philips" },
-    "firmware_id": "v1.2.0.bin",
-    "online": true,
-    "created_at": "2026-04-09T10:00:00Z",
-    "updated_at": "2026-04-09T10:00:00Z"
-  }
-]
-```
-
----
-
-#### `POST /api/v1/devices`
-
-Create a device.
-
-**Request**
-```json
-{
-  "name": "Living Room Light",
-  "type": "light",
-  "room_id": "uuid",
-  "metadata": { "manufacturer": "Philips" }
-}
-```
-
-`type` must be one of: `light`, `switch`, `sensor`, `lock`, `fan`, `custom`.  
-`room_id` and `metadata` are optional.
-
-**Response `201`**
-```json
-{
-  "id": "uuid",
-  "name": "Living Room Light",
-  "type": "light",
-  "room_id": "uuid",
-  "state": {},
-  "online": false,
-  "created_at": "2026-04-09T10:00:00Z",
-  "updated_at": "2026-04-09T10:00:00Z"
-}
-```
-
----
-
-#### `GET /api/v1/devices/{id}`
-
-Get a single device.
-
-**Response `200`** — same shape as list item.
-
-**Errors**
-- `404` — device not found
-
----
-
-#### `PUT /api/v1/devices/{id}`
-
-Update a device. All fields are optional.
-
-**Request**
-```json
-{
-  "name": "Bedroom Light",
-  "room_id": "uuid",
-  "metadata": { "manufacturer": "IKEA" }
-}
-```
-
-**Response `200`** — updated device object.
-
----
-
-#### `DELETE /api/v1/devices/{id}`
-
-Delete a device.
-
-**Response `204`** — no body
-
----
-
-#### `POST /api/v1/devices/{id}/command`
-
-Send a command to a device via MQTT.
-
-**Request**
-```json
-{
-  "action": "set_brightness",
-  "params": { "brightness": 50 }
-}
-```
-
-**Response `202`** — no body (command is fire-and-forget over MQTT)
-
----
-
-### Automations
-
-#### `GET /api/v1/automations`
-
-List all automation rules.
-
-**Response `200`**
-```json
-[
-  {
-    "id": "uuid",
-    "name": "Night mode",
-    "description": "Dim lights at 10pm",
-    "enabled": true,
-    "trigger": {
-      "type": "schedule",
-      "config": { "cron": "0 22 * * *" }
-    },
-    "conditions": [
-      {
-        "type": "time_range",
-        "config": { "start": "22:00", "end": "06:00" }
-      }
-    ],
-    "actions": [
-      {
-        "type": "device_command",
-        "config": { "device_id": "uuid", "action": "set_brightness", "params": { "brightness": 10 } }
-      }
-    ],
-    "created_at": "2026-04-09T10:00:00Z",
-    "updated_at": "2026-04-09T10:00:00Z"
-  }
-]
-```
-
----
-
-#### `POST /api/v1/automations`
-
-Create an automation rule.
-
-**Request**
-```json
-{
-  "name": "Night mode",
-  "description": "Dim lights at 10pm",
-  "trigger": {
-    "type": "schedule",
-    "config": { "cron": "0 22 * * *" }
-  },
-  "conditions": [],
-  "actions": [
-    {
-      "type": "device_command",
-      "config": { "device_id": "uuid", "action": "set_brightness", "params": { "brightness": 10 } }
-    }
-  ]
-}
-```
-
-Trigger types: `device_state`, `schedule`, `event`  
-Condition types: `device_state`, `time_range`, `ai_condition`  
-Action types: `device_command`, `notification`, `ai_action`
-
-**Response `201`** — created rule object (same shape as list item).
-
----
-
-#### `GET /api/v1/automations/{id}`
-
-Get a single automation rule.
-
-**Response `200`** — rule object.
-
-**Errors**
-- `404` — rule not found
-
----
-
-#### `PUT /api/v1/automations/{id}`
-
-Update an automation rule. All fields are optional.
-
-**Request**
-```json
-{
-  "name": "Updated name",
-  "enabled": false,
-  "trigger": { "type": "schedule", "config": { "cron": "0 23 * * *" } }
-}
-```
-
-**Response `200`** — updated rule object.
-
----
-
-#### `DELETE /api/v1/automations/{id}`
-
-Delete an automation rule.
-
-**Response `204`** — no body
-
----
-
-### Firmware
-
-#### `GET /api/v1/firmware`
-
-List all uploaded firmware files stored in MinIO.
-
-**Response `200`**
-```json
-[
-  {
-    "name": "v1.2.0.bin",
-    "size": 524288,
-    "last_modified": "2026-04-09 10:00:00 +0000 UTC"
-  }
-]
-```
-
----
-
-#### `POST /api/v1/firmware/upload`
-
-Upload a firmware binary. Multipart form, field name `firmware`. Max 100 MB.
-
-**Request** — `Content-Type: multipart/form-data`
-```
-firmware=@/path/to/firmware.bin
-```
-
-**Response `201`**
-```json
-{ "name": "firmware.bin" }
-```
-
-**Errors**
-- `400` — missing file or form parse error
-
----
-
-#### `GET /api/v1/firmware/{id}/download`
-
-Download a firmware file by name (the `id` path param is the filename).
-
-**Response `200`** — binary stream  
-`Content-Type: application/octet-stream`  
-`Content-Disposition: attachment; filename=<id>`
-
-**Errors**
-- `404` — file not found
-
----
-
-### WebSocket
-
-#### `GET /ws`
-
-Real-time event stream. Requires Bearer token (same as REST).
-
-Upgrade to WebSocket. The server pushes JSON messages when device state changes:
-
-```json
-{
-  "event": "device.state",
-  "data": {
-    "device_id": "uuid",
-    "state": { "on": true, "brightness": 80 }
-  }
-}
-```
-
----
-
-## Error Responses
-
-All errors follow this shape:
-
-```json
-{ "error": "description" }
-```
-
-| Status | Meaning |
-|--------|---------|
-| `400` | Bad request / missing or invalid body |
-| `401` | Missing or invalid Bearer token |
-| `403` | Authenticated but not authorized for this action |
-| `404` | Resource not found |
-| `409` | Conflict (e.g. invitation already used) |
-| `500` | Internal server error |
+## Notes for contributors
+
+- Keep [apps/core/api/openapi.yaml](apps/core/api/openapi.yaml) aligned with changes to public HTTP handlers.
+- Add schema changes in `apps/core/migrations/` as a new numbered Goose migration rather than modifying an applied migration. Use `docker compose run --rm migrate -s create <name> sql`, then run `./scripts/migrate.sh` and `./scripts/migrate.sh status` to verify it. Existing databases must be adopted once with `./scripts/adopt-goose.sh <version>` before their first Goose run.
+- Do not commit `.env`, certificate material, generated ESP-IDF build output, or firmware dependency lock/build artifacts.

@@ -1,0 +1,6 @@
+FROM alpine:3.21
+
+RUN apk add --no-cache openssl
+
+ENTRYPOINT ["/bin/sh", "-ec"]
+CMD ["if [ -s /certs/ca.crt ] && [ -s /certs/ca.key ]; then exit 0; fi; umask 077; openssl req -x509 -newkey rsa:2048 -sha256 -nodes -keyout /certs/ca.key -out /certs/ca.crt -days 3650 -subj '/CN=Sol local development CA'"]

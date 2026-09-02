@@ -1,0 +1,8 @@
+.git/
+bin/
+api/openapi.json
+**/*.test
+**/*.out
+**/*.coverprofile
+coverage/
+.DS_Store

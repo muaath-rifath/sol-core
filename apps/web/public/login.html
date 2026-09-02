@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="SOL – AI & IoT Home and Building Automation powered by ESP-32. Secure admin login and member invitation portal." />
+  <title>SOL | AI & IoT Automation Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ─────────────────────────────────────────────
+       RESET & BASE
+    ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* Gradient background palette */
+      --bg-start:    #0d0f1a;
+      --bg-mid:      #0e1e36;
+      --bg-end:      #071525;
+      --blob-a:      #1a2d55;
+      --blob-b:      #0b2444;
+      --blob-c:      #162240;
+
+      /* Solid matte UI colors (NO gradients) */
+      --panel-bg:    rgba(15, 23, 42, 0.52);
+      --panel-border:#1e3a5f;
+      --panel-shadow:rgba(0, 0, 0, 0.6);
+
+      --tab-active-bg:  #1b4f8a;
+      --tab-inactive-bg:#0f2744;
+      --tab-text-active:#e8f1ff;
+      --tab-text-muted: #6b8db5;
+
+      --input-bg:    #0b1a2e;
+      --input-border:#1d3657;
+      --input-focus: #2563eb;
+      --input-text:  #ccd9ee;
+      --input-label: #7a9abf;
+      --input-ph:    #3a5577;
+
+      --btn-primary:  #1b4f8a;
+      --btn-primary-h:#1a5fa0;
+      --btn-primary-t:#e8f4ff;
+
+      --btn-outline:  #0f2744;
+      --btn-outline-h:#162e50;
+      --btn-outline-t:#8ab0d8;
+      --btn-outline-border:#1e3a5f;
+
+      --dz-bg:       #071b30;
+      --dz-border:   #1e3a5f;
+      --dz-hover-bg: #0c2340;
+      --dz-hover-border:#2563eb;
+      --dz-text:     #5e82a8;
+
+      --status-on:   #22c55e;
+      --status-off:  #ef4444;
+      --footer-bg:   #060d19;
+      --footer-text: #4a6a8a;
+
+      --text-heading:#d4e6ff;
+      --text-body:   #8aabcf;
+      --text-muted:  #4a6a8a;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+      background: #0d0f1a;
+      color: var(--text-body);
+      overflow-x: hidden;
+    }
+
+    /* ─────────────────────────────────────────────
+       ANIMATED BACKGROUND
+    ───────────────────────────────────────────── */
+    .bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background: radial-gradient(ellipse 130% 90% at 10% 0%, #1a2d55 0%, #0d0f1a 55%),
+                  radial-gradient(ellipse 100% 80% at 90% 100%, #0b2444 0%, transparent 60%),
+                  #080c18;
+      overflow: hidden;
+    }
+
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0.35;
+      will-change: transform;
+    }
+    .blob-1 {
+      width: 680px; height: 680px;
+      background: #10295c;
+      top: -20%; left: -15%;
+      animation: drift1 18s ease-in-out infinite alternate;
+    }
+    .blob-2 {
+      width: 500px; height: 500px;
+      background: #0c2248;
+      bottom: -10%; right: -10%;
+      animation: drift2 22s ease-in-out infinite alternate;
+    }
+    .blob-3 {
+      width: 360px; height: 360px;
+      background: #162a50;
+      top: 40%; left: 55%;
+      animation: drift3 15s ease-in-out infinite alternate;
+    }
+
+    @keyframes drift1 {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(60px, 40px) scale(1.08); }
+    }
+    @keyframes drift2 {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(-50px, -60px) scale(1.1); }
+    }
+    @keyframes drift3 {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(30px, -50px) scale(0.92); }
+    }
+
+    /* ─────────────────────────────────────────────
+       LAYOUT SHELL
+    ───────────────────────────────────────────── */
+    .page-shell {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─────────────────────────────────────────────
+       HEADER
+    ───────────────────────────────────────────── */
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      height: 62px;
+      background: rgba(8, 14, 28, 0.82);
+      border-bottom: 1px solid #101f38;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+    .brand-icon {
+      width: 34px; height: 34px;
+      background: #1b4f8a;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .brand-icon svg { width: 18px; height: 18px; fill: #c2deff; }
+    .brand-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #c8dfff;
+      letter-spacing: 0.04em;
+    }
+    .brand-sub {
+      font-size: 0.65rem;
+      font-weight: 400;
+      color: #3d6490;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-top: 1px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Solid matte header buttons */
+    .btn-header {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      border: none;
+      outline: none;
+      transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
+    }
+    .btn-header:active { transform: scale(0.96); }
+
+    #btn-manual {
+      background: #0f2744;
+      color: #7aaed6;
+      border: 1px solid #1e3a5f;
+    }
+    #btn-manual:hover { background: #142e52; color: #a2c8f0; }
+
+    #btn-help {
+      background: #1b4f8a;
+      color: #c0dcf8;
+    }
+    #btn-help:hover { background: #1a5fa0; color: #ddeeff; }
+
+    .btn-header svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+    /* ─────────────────────────────────────────────
+       MAIN CONTENT AREA
+    ───────────────────────────────────────────── */
+    .main-content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    /* ─────────────────────────────────────────────
+       LEVITATING GLASS PANEL
+    ───────────────────────────────────────────── */
+    .glass-panel {
+      width: 100%;
+      max-width: 440px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      backdrop-filter: blur(28px) saturate(1.4);
+      -webkit-backdrop-filter: blur(28px) saturate(1.4);
+      box-shadow:
+        0 8px 32px var(--panel-shadow),
+        0 0 0 1px rgba(255,255,255,0.04) inset,
+        0 1px 0 rgba(255,255,255,0.06) inset;
+      animation: levitate 5s ease-in-out infinite;
+      padding: 36px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Subtle shimmer rim at top */
+    .glass-panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 12%; right: 12%;
+      height: 1px;
+      background: rgba(255,255,255,0.10);
+      border-radius: 50%;
+    }
+
+    @keyframes levitate {
+      0%, 100% { transform: translateY(0px);    box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset; }
+      50%       { transform: translateY(-12px);  box-shadow: 0 24px 56px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset; }
+    }
+
+    /* ─────────────────────────────────────────────
+       PANEL HEADER
+    ───────────────────────────────────────────── */
+    .panel-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .panel-logo-icon {
+      width: 40px; height: 40px;
+      background: #1b4f8a;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .panel-logo-icon svg { width: 22px; height: 22px; fill: #c2deff; }
+    .panel-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      letter-spacing: 0.03em;
+    }
+    .panel-desc {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      letter-spacing: 0.03em;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    /* ─────────────────────────────────────────────
+       TAB TOGGLE (Log In / Sign Up)
+    ───────────────────────────────────────────── */
+    .tab-bar {
+      display: flex;
+      gap: 4px;
+      background: #07111f;
+      border: 1px solid #111f35;
+      border-radius: 9px;
+      padding: 4px;
+      margin-bottom: 28px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 9px 0;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.84rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      transition: background 0.22s ease, color 0.22s ease;
+      outline: none;
+    }
+    .tab-btn.active {
+      background: var(--tab-active-bg);
+      color: var(--tab-text-active);
+    }
+    .tab-btn:not(.active) {
+      background: transparent;
+      color: var(--tab-text-muted);
+    }
+    .tab-btn:not(.active):hover {
+      background: #101e34;
+      color: #8aafd6;
+    }
+
+    /* ─────────────────────────────────────────────
+       VIEWS  (Login / Signup)
+    ───────────────────────────────────────────── */
+    .view {
+      display: none;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .view.active { display: flex; }
+
+    /* ─────────────────────────────────────────────
+       INPUT FIELDS
+    ───────────────────────────────────────────── */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .field label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--input-label);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .field-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .field-icon {
+      position: absolute;
+      left: 13px;
+      width: 16px; height: 16px;
+      color: #2f5278;
+      pointer-events: none;
+      flex-shrink: 0;
+    }
+    .field-icon svg { width: 100%; height: 100%; }
+
+    .field input {
+      width: 100%;
+      padding: 11px 14px 11px 40px;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      color: var(--input-text);
+      font-size: 0.88rem;
+      font-family: 'Inter', sans-serif;
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+      /* Solid, no gradients */
+    }
+    .field input::placeholder { color: var(--input-ph); }
+    .field input:focus {
+      border-color: var(--input-focus);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+    }
+
+    /* Password toggle */
+    .toggle-pw {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #2f5278;
+      padding: 2px;
+      line-height: 0;
+      transition: color 0.15s;
+    }
+    .toggle-pw:hover { color: #5a8dbc; }
+    .toggle-pw svg { width: 17px; height: 17px; }
+
+    /* Field hints */
+    .field-hint {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    /* Remember + forgot row */
+    .login-extras {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: -4px;
+    }
+    .remember-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.78rem;
+      color: #6490b8;
+      cursor: pointer;
+      user-select: none;
+    }
+    .remember-label input[type="checkbox"] {
+      accent-color: #1b4f8a;
+      width: 14px; height: 14px;
+      cursor: pointer;
+    }
+    .forgot-link {
+      font-size: 0.78rem;
+      color: #3d6a9e;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .forgot-link:hover { color: #6a9fd4; }
+
+    /* ─────────────────────────────────────────────
+       PRIMARY ACTION BUTTON
+    ───────────────────────────────────────────── */
+    .btn-primary {
+      width: 100%;
+      padding: 13px 0;
+      background: var(--btn-primary);
+      color: var(--btn-primary-t);
+      border: none;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.18s ease, transform 0.12s ease, box-shadow 0.18s ease;
+      margin-top: 4px;
+      outline: none;
+    }
+    .btn-primary:hover {
+      background: var(--btn-primary-h);
+      box-shadow: 0 6px 22px rgba(27, 79, 138, 0.38);
+    }
+    .btn-primary:active { transform: scale(0.98); }
+
+    /* ─────────────────────────────────────────────
+       DIVIDER
+    ───────────────────────────────────────────── */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #1d3450;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #111e33;
+    }
+
+    /* ─────────────────────────────────────────────
+       DRAG & DROP ZONE
+    ───────────────────────────────────────────── */
+    .dz-section-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--input-label);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    #drop-zone {
+      position: relative;
+      min-height: 148px;
+      background: var(--dz-bg);
+      border: 2px dashed var(--dz-border);   /* solid dashed border, no gradient */
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease;
+      padding: 20px;
+      outline: none;
+    }
+    #drop-zone:hover,
+    #drop-zone.dz-hover {
+      background: var(--dz-hover-bg);
+      border-color: var(--dz-hover-border);
+    }
+    #drop-zone.dz-hover .dz-icon  { color: #3b82f6; }
+    #drop-zone.dz-hover .dz-title { color: #7ab3e8; }
+
+    .dz-icon { color: #1e3f66; transition: color 0.2s; }
+    .dz-icon svg { width: 38px; height: 38px; }
+
+    .dz-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #3a6090;
+      transition: color 0.2s;
+    }
+    .dz-sub {
+      font-size: 0.73rem;
+      color: #243d5a;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* File browse button */
+    .btn-browse {
+      padding: 6px 16px;
+      background: #0f2744;
+      color: #5a85b5;
+      border: 1px solid #1a3456;
+      border-radius: 6px;
+      font-size: 0.76rem;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: background 0.15s, color 0.15s;
+      outline: none;
+    }
+    .btn-browse:hover { background: #142e52; color: #81acd4; }
+
+    /* Hidden file input */
+    #file-input { display: none; }
+
+    /* File success state */
+    .dz-file-name {
+      font-size: 0.78rem;
+      color: #22c55e;
+      text-align: center;
+      font-weight: 500;
+      display: none;
+    }
+    .dz-file-name.visible { display: block; }
+
+    .dz-clear-btn {
+      background: none;
+      border: none;
+      color: #ef4444;
+      font-size: 0.72rem;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      display: none;
+      transition: color 0.15s;
+    }
+    .dz-clear-btn.visible { display: inline-block; }
+    .dz-clear-btn:hover { color: #f87171; }
+
+    /* Invite name field */
+    .invite-field-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .invite-field-wrap label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--input-label);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    /* Notice box */
+    .notice-box {
+      background: #071929;
+      border: 1px solid #0e2a44;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 0.77rem;
+      color: #4a7aa8;
+      line-height: 1.6;
+    }
+    .notice-box strong { color: #6aaad4; }
+
+    /* ─────────────────────────────────────────────
+       FOOTER
+    ───────────────────────────────────────────── */
+    .site-footer {
+      background: var(--footer-bg);
+      border-top: 1px solid #0a1727;
+      padding: 0 32px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+
+    .footer-brand {
+      font-size: 0.73rem;
+      color: #2c4a6a;
+      letter-spacing: 0.04em;
+    }
+    .footer-brand span { color: #3d6a96; }
+
+    /* ESP-32 status pill */
+    .esp-status {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .esp-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #07111f;
+      border: 1px solid #0e1f35;
+      border-radius: 20px;
+      padding: 5px 13px;
+    }
+    .esp-chip-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: #2c4a6a;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.online  { background: var(--status-on);  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5); }
+    .status-dot.offline { background: var(--status-off); box-shadow: 0 0 6px rgba(239, 68, 68,  0.5); }
+    .status-dot.checking {
+      background: #f59e0b;
+      box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+      animation: blink 1.1s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .status-text {
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: #344e6a;
+    }
+    .status-text.online  { color: #22c55e; }
+    .status-text.offline { color: #ef4444; }
+    .status-text.checking { color: #f59e0b; }
+
+    .footer-copy {
+      font-size: 0.68rem;
+      color: #1e3550;
+    }
+
+    /* ─────────────────────────────────────────────
+       RESPONSIVE
+    ───────────────────────────────────────────── */
+    @media (max-width: 520px) {
+      .site-header { padding: 0 16px; }
+      .brand-sub, .btn-header span { display: none; }
+      .glass-panel { padding: 26px 20px; border-radius: 14px; }
+      .site-footer { padding: 0 16px; }
+      .footer-copy { display: none; }
+    }
+
+    /* ─────────────────────────────────────────────
+       MICRO ANIMATIONS
+    ───────────────────────────────────────────── */
+    @keyframes fadeSlide {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .view.active {
+      animation: fadeSlide 0.28s ease forwards;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Animated Background ── -->
+  <div class="bg-canvas" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <!-- ── Page Shell ── -->
+  <div class="page-shell">
+
+    <!-- ══════════ HEADER ══════════ -->
+    <header class="site-header" role="banner">
+
+      <a class="brand" href="#" aria-label="SOL Automation Home">
+        <div class="brand-icon" aria-hidden="true">
+          <!-- Circuit / Automation icon -->
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 2v4H2v2h4v4H2v2h4v4H2v2h4v2h2v-4h4v4h2v-4h4v4h2v-4H2V2H6zm2 2h4v4H8V4zm6 0h4v4h-4V4zM8 10h4v4H8v-4zm6 0h4v4h-4v-4zM8 16h4v4H8v-4zm6 0h4v4h-4v-4z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-name">SOL Automation</div>
+          <div class="brand-sub">AI &bullet; IoT &bullet; ESP-32</div>
+        </div>
+      </a>
+
+      <nav class="header-actions" aria-label="Support navigation">
+        <button id="btn-manual" class="btn-header" type="button" aria-label="Open User Manual">
+          <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/>
+          </svg>
+          <span>User Manual</span>
+        </button>
+
+        <button id="btn-help" class="btn-header" type="button" aria-label="Ask for Help">
+          <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/>
+          </svg>
+          <span>Ask for Help</span>
+        </button>
+      </nav>
+    </header>
+
+    <!-- ══════════ MAIN ══════════ -->
+    <main class="main-content" id="main" role="main">
+
+      <!-- ── Levitating Glass Panel ── -->
+      <div class="glass-panel" role="region" aria-label="Authentication panel">
+
+        <!-- Brand mark inside panel -->
+        <div class="panel-logo" aria-hidden="true">
+          <div class="panel-logo-icon">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 4l5 2.18V11c0 3.5-2.33 6.79-5 7.93C9.33 17.79 7 14.5 7 11V7.18L12 5z"/>
+            </svg>
+          </div>
+          <div class="panel-title">SOL Portal</div>
+        </div>
+        <p class="panel-desc">
+          Secure access to your AI &amp; IoT home and<br>building automation network
+        </p>
+
+        <!-- ── Tab Bar ── -->
+        <div class="tab-bar" role="tablist" aria-label="Authentication mode">
+          <button
+            id="tab-login"
+            class="tab-btn active"
+            role="tab"
+            aria-selected="true"
+            aria-controls="view-login"
+            type="button"
+          >Log In</button>
+          <button
+            id="tab-signup"
+            class="tab-btn"
+            role="tab"
+            aria-selected="false"
+            aria-controls="view-signup"
+            type="button"
+          >Sign Up / Invite</button>
+        </div>
+
+        <!-- ════ LOG IN VIEW ════ -->
+        <div id="view-login" class="view active" role="tabpanel" aria-labelledby="tab-login">
+
+          <form id="login-form" novalidate autocomplete="on">
+
+            <div class="field" style="margin-bottom:18px;">
+              <label for="admin-email">Admin Email</label>
+              <div class="field-wrap">
+                <span class="field-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                </span>
+                <input
+                  type="email"
+                  id="admin-email"
+                  name="email"
+                  placeholder="admin@yourhome.local"
+                  autocomplete="username"
+                  spellcheck="false"
+                  required
+                  aria-required="true"
+                  aria-label="Admin email address"
+                />
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="admin-password">Password</label>
+              <div class="field-wrap">
+                <span class="field-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                </span>
+                <input
+                  type="password"
+                  id="admin-password"
+                  name="password"
+                  placeholder="••••••••••••"
+                  autocomplete="current-password"
+                  required
+                  aria-required="true"
+                  aria-label="Admin password"
+                />
+                <button
+                  type="button"
+                  class="toggle-pw"
+                  id="toggle-pw-login"
+                  aria-label="Toggle password visibility"
+                  aria-pressed="false"
+                >
+                  <svg id="pw-eye-open" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+                  <svg id="pw-eye-closed" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="login-extras">
+              <label class="remember-label" for="remember-me">
+                <input type="checkbox" id="remember-me" name="remember" />
+                Remember this device
+              </label>
+              <a href="#" class="forgot-link" id="forgot-link">Forgot password?</a>
+            </div>
+
+            <button type="submit" class="btn-primary" id="btn-login" style="margin-top:22px;">
+              Access Control Dashboard
+            </button>
+
+          </form>
+
+        </div>
+        <!-- ═══ END LOG IN VIEW ═══ -->
+
+        <!-- ════ SIGN UP / INVITE VIEW ════ -->
+        <div id="view-signup" class="view" role="tabpanel" aria-labelledby="tab-signup">
+
+          <div class="notice-box" role="note">
+            <strong>Invitation Required.</strong> New members must have received an invitation
+            from the network admin. Drop your <strong>.inv</strong> or <strong>.token</strong>
+            file below to join the automation network.
+          </div>
+
+          <!-- Invite name field -->
+          <div class="field">
+            <label for="invite-name">Your Full Name</label>
+            <div class="field-wrap">
+              <span class="field-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+              </span>
+              <input
+                type="text"
+                id="invite-name"
+                name="invite-name"
+                placeholder="Jane Doe"
+                autocomplete="name"
+                aria-label="Your full name"
+              />
+            </div>
+          </div>
+
+          <!-- Drag & Drop Zone -->
+          <div class="invite-field-wrap">
+            <label id="dz-label">Invitation Token File</label>
+            <div
+              id="drop-zone"
+              role="button"
+              tabindex="0"
+              aria-labelledby="dz-label"
+              aria-describedby="dz-desc"
+            >
+              <!-- Icon -->
+              <div class="dz-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                </svg>
+              </div>
+
+              <div class="dz-title">Drop Invitation Token Here</div>
+              <p class="dz-sub" id="dz-desc">
+                Accepts <strong style="color:#2a4e70;">.inv</strong> &middot;
+                <strong style="color:#2a4e70;">.token</strong> &middot;
+                <strong style="color:#2a4e70;">.json</strong> files
+              </p>
+
+              <button class="btn-browse" type="button" id="btn-browse" aria-label="Browse for token file">
+                Browse File
+              </button>
+
+              <input type="file" id="file-input" accept=".inv,.token,.json" aria-hidden="true" />
+
+              <div class="dz-file-name" id="dz-file-name" role="status" aria-live="polite"></div>
+              <button class="dz-clear-btn" id="dz-clear-btn" type="button" aria-label="Remove selected file">
+                ✕ Remove file
+              </button>
+            </div>
+          </div>
+
+          <button type="button" class="btn-primary" id="btn-join" style="margin-top:4px;">
+            Join Automation Network
+          </button>
+
+        </div>
+        <!-- ═══ END SIGN UP VIEW ═══ -->
+
+      </div>
+      <!-- ═══ END GLASS PANEL ═══ -->
+
+    </main>
+
+    <!-- ══════════ FOOTER ══════════ -->
+    <footer class="site-footer" role="contentinfo">
+
+      <div class="footer-brand">
+        <span>SOL</span> Automation &bull; AI &amp; IoT Platform
+      </div>
+
+      <!-- ESP-32 Hardware Status -->
+      <div class="esp-status" role="status" aria-live="polite" aria-label="ESP-32 connection status">
+        <div class="esp-chip">
+          <div class="esp-chip-label">ESP-32</div>
+          <div class="status-dot checking" id="status-dot" aria-hidden="true"></div>
+          <div class="status-text checking" id="status-text">Connecting…</div>
+        </div>
+      </div>
+
+      <div class="footer-copy">&copy; 2026 SOL Systems. All rights reserved.</div>
+
+    </footer>
+
+  </div><!-- /.page-shell -->
+
+  <!-- ════════════════════════════════════════════════
+       JAVASCRIPT
+  ═════════════════════════════════════════════════ -->
+  <script>
+    'use strict';
+
+    /* ─── Tab Toggle ─── */
+    const tabLogin  = document.getElementById('tab-login');
+    const tabSignup = document.getElementById('tab-signup');
+    const viewLogin  = document.getElementById('view-login');
+    const viewSignup = document.getElementById('view-signup');
+
+    function activateTab(tab) {
+      const isLogin = tab === 'login';
+
+      tabLogin.classList.toggle('active', isLogin);
+      tabSignup.classList.toggle('active', !isLogin);
+      tabLogin.setAttribute('aria-selected',  isLogin ? 'true' : 'false');
+      tabSignup.setAttribute('aria-selected', isLogin ? 'false' : 'true');
+
+      viewLogin.classList.toggle('active', isLogin);
+      viewSignup.classList.toggle('active', !isLogin);
+    }
+
+    tabLogin.addEventListener('click',  () => activateTab('login'));
+    tabSignup.addEventListener('click', () => activateTab('signup'));
+
+    /* ─── Password Visibility Toggle ─── */
+    const pwInput    = document.getElementById('admin-password');
+    const toggleBtn  = document.getElementById('toggle-pw-login');
+    const eyeOpen    = document.getElementById('pw-eye-open');
+    const eyeClosed  = document.getElementById('pw-eye-closed');
+
+    toggleBtn.addEventListener('click', () => {
+      const isPassword = pwInput.type === 'password';
+      pwInput.type = isPassword ? 'text' : 'password';
+      eyeOpen.style.display   = isPassword ? 'none'  : '';
+      eyeClosed.style.display = isPassword ? ''      : 'none';
+      toggleBtn.setAttribute('aria-pressed', isPassword ? 'true' : 'false');
+    });
+
+    /* ─── Login Form Submit ─── */
+    const loginForm = document.getElementById('login-form');
+    const btnLogin  = document.getElementById('btn-login');
+
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email    = document.getElementById('admin-email').value.trim();
+      const password = document.getElementById('admin-password').value;
+
+      if (!email || !password) {
+        shakePanel();
+        return;
+      }
+
+      btnLogin.textContent = 'Authenticating…';
+      btnLogin.disabled = true;
+
+      // Simulate async auth call — replace with real fetch()
+      setTimeout(() => {
+        btnLogin.textContent = 'Access Control Dashboard';
+        btnLogin.disabled = false;
+        // handle redirect: window.location.href = '/dashboard';
+      }, 1800);
+    });
+
+    /* ─── Drag & Drop Zone ─── */
+    const dropZone   = document.getElementById('drop-zone');
+    const fileInput  = document.getElementById('file-input');
+    const browseBtn  = document.getElementById('btn-browse');
+    const dzFileName = document.getElementById('dz-file-name');
+    const dzClearBtn = document.getElementById('dz-clear-btn');
+    const btnJoin    = document.getElementById('btn-join');
+
+    let selectedFile = null;
+
+    /* Open native file picker */
+    browseBtn.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('click', (e) => {
+      if (e.target !== browseBtn && e.target !== dzClearBtn) fileInput.click();
+    });
+
+    /* Keyboard activation */
+    dropZone.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fileInput.click();
+      }
+    });
+
+    /* Native file picker change */
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    /* Drag events */
+    dropZone.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dz-hover');
+    });
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dz-hover');
+    });
+    dropZone.addEventListener('dragleave', (e) => {
+      // Only remove hover when leaving the zone itself
+      if (!dropZone.contains(e.relatedTarget)) {
+        dropZone.classList.remove('dz-hover');
+      }
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dz-hover');
+      const files = e.dataTransfer.files;
+      if (files.length) handleFile(files[0]);
+    });
+
+    /* Handle the selected/dropped file */
+    function handleFile(file) {
+      selectedFile = file;
+
+      const allowed = ['.inv', '.token', '.json'];
+      const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+
+      if (!allowed.includes(ext)) {
+        dzFileName.textContent = '⚠ Invalid file type. Use .inv, .token, or .json';
+        dzFileName.style.color = '#ef4444';
+        dzFileName.classList.add('visible');
+        dzClearBtn.classList.add('visible');
+        selectedFile = null;
+        return;
+      }
+
+      dzFileName.textContent = '✓ ' + file.name;
+      dzFileName.style.color = '#22c55e';
+      dzFileName.classList.add('visible');
+      dzClearBtn.classList.add('visible');
+    }
+
+    /* Clear selection */
+    dzClearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      selectedFile = null;
+      fileInput.value = '';
+      dzFileName.textContent = '';
+      dzFileName.classList.remove('visible');
+      dzClearBtn.classList.remove('visible');
+      dzFileName.style.color = '';
+    });
+
+    /* Join button */
+    btnJoin.addEventListener('click', () => {
+      const name = document.getElementById('invite-name').value.trim();
+      if (!selectedFile) {
+        dropZone.style.borderColor = '#ef4444';
+        setTimeout(() => (dropZone.style.borderColor = ''), 800);
+        return;
+      }
+      if (!name) {
+        document.getElementById('invite-name').focus();
+        return;
+      }
+
+      btnJoin.textContent = 'Validating Token…';
+      btnJoin.disabled = true;
+
+      // Simulate token validation — replace with real fetch(FormData)
+      setTimeout(() => {
+        btnJoin.textContent = 'Join Automation Network';
+        btnJoin.disabled = false;
+        // handle redirect on success
+      }, 2000);
+    });
+
+    /* ─── Panel Shake (validation) ─── */
+    function shakePanel() {
+      const panel = document.querySelector('.glass-panel');
+      panel.style.animation = 'none';
+      panel.style.transform = 'translateX(-6px)';
+      setTimeout(() => {
+        panel.style.transform = 'translateX(6px)';
+        setTimeout(() => {
+          panel.style.transform = '';
+          panel.style.animation = '';
+        }, 80);
+      }, 80);
+    }
+
+    /* ─── Header buttons (placeholder handlers) ─── */
+    document.getElementById('btn-manual').addEventListener('click', () => {
+      console.log('[SOL] Open user manual');
+      // window.open('/manual', '_blank');
+    });
+    document.getElementById('btn-help').addEventListener('click', () => {
+      console.log('[SOL] Open help / support');
+      // window.open('/support', '_blank');
+    });
+
+    document.getElementById('forgot-link').addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log('[SOL] Trigger password reset flow');
+    });
+
+    /* ─── ESP-32 Status Simulation ─── */
+    const statusDot  = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+
+    function setStatus(state) {
+      const states = {
+        checking: { label: 'Connecting…',  cls: 'checking' },
+        online:   { label: 'Online',        cls: 'online'   },
+        offline:  { label: 'Offline',       cls: 'offline'  },
+      };
+      const s = states[state] || states.checking;
+
+      statusDot.className  = 'status-dot '  + s.cls;
+      statusText.className = 'status-text ' + s.cls;
+      statusText.textContent = s.label;
+    }
+
+    /**
+     * Replace this function with a real ping to your ESP-32 endpoint,
+     * e.g. fetch('http://<esp32-ip>/ping').then(...)
+     */
+    function pingESP32() {
+      setStatus('checking');
+      // DEMO: resolve after 1.5 s with random result (70% online)
+      setTimeout(() => {
+        setStatus(Math.random() > 0.3 ? 'online' : 'offline');
+      }, 1500);
+    }
+
+    pingESP32();
+    setInterval(pingESP32, 30000); // re-check every 30 s
+  </script>
+
+</body>
+</html>

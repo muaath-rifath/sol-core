@@ -3,6 +3,7 @@ services:
     image: traefik:v2.11
     container_name: sol-traefik
     restart: unless-stopped
+    profiles: ["edge"]
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
@@ -25,28 +26,45 @@ services:
       - DOCKER_API_VERSION=1.41
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/acme.json:/acme/acme.json
-      - ./traefik/conf:/traefik/conf:ro
+      - ./infra/traefik/acme.json:/acme/acme.json
+      - ./infra/traefik/conf:/traefik/conf:ro
       - ./certs:/certs:ro
     networks:
       - sol-net
 
   sol-core:
-    build: .
+    build:
+      context: ./apps/core
     container_name: sol-core
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env.example
+      - path: .env
+        required: false
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       minio:
         condition: service_started
+      vernemq:
+        condition: service_healthy
+      init-certs:
+        condition: service_completed_successfully
     networks:
       - sol-net
+    ports:
+      - "8080:8080"
     volumes:
       - ./certs:/certs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/healthz >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
     labels:
       - "traefik.enable=true"
       # Main API routes — ForwardAuth validates Bearer token via Zitadel
@@ -85,29 +103,84 @@ services:
       - "traefik.http.services.sol-svc.loadbalancer.server.port=8080"
       - "traefik.docker.network=sol-net"
 
+  migrate:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.migrate
+    container_name: sol-migrate
+    env_file:
+      - path: .env.example
+      - path: .env
+        required: false
+    environment:
+      GOOSE_DBSTRING: postgres://sol:sol@postgres:5432/sol?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./apps/core/migrations:/migrations
+    networks:
+      - sol-net
+    restart: "no"
+
   sol-agent:
     build:
-      context: ./agent
+      context: ./apps/agent
     container_name: sol-agent
     restart: unless-stopped
-    env_file: .env
+    profiles: ["voice"]
+    env_file:
+      - path: .env.example
+      - path: .env
+        required: false
     depends_on:
       - sol-core
     networks:
       - sol-net
 
+  init-certs:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dev-certs
+    container_name: sol-init-certs
+    volumes:
+      - ./certs:/certs
+    restart: "no"
+
+  sol-nextjs:
+    build:
+      context: ./apps/web
+    container_name: sol-nextjs
+    restart: unless-stopped
+    env_file:
+      - path: .env.example
+      - path: .env
+        required: false
+    environment:
+      SOL_CORE_URL: http://sol-core:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      sol-core:
+        condition: service_healthy
+    networks:
+      - sol-net
+
   sol-builder:
     build:
-      context: ./sol-builder
+      context: ./apps/builder
     container_name: sol-builder
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env.example
+      - path: .env
+        required: false
     environment:
       - REDIS_URL=redis://redis:6379/0
       - SOL_API_URL=http://sol-core:8080
       - FIRMWARE_SRC_DIR=/firmware
     volumes:
-      - ./firmware:/firmware
+      - ./packages/firmware:/firmware
     depends_on:
       - redis
     networks:
@@ -116,7 +189,7 @@ services:
   postgres:
     build:
       context: .
-      dockerfile: postgres.Dockerfile
+      dockerfile: infra/postgres/Dockerfile
     container_name: sol-postgres
     restart: unless-stopped
     environment:
@@ -160,6 +233,24 @@ services:
       retries: 10
     mem_limit: 320m
     mem_reservation: 128m
+    networks:
+      - sol-net
+
+  vernemq:
+    image: vernemq/vernemq:2.2.0-alpine
+    container_name: sol-vernemq
+    restart: unless-stopped
+    environment:
+      DOCKER_VERNEMQ_ACCEPT_EULA: "yes"
+      DOCKER_VERNEMQ_ALLOW_ANONYMOUS: "on"
+      DOCKER_VERNEMQ_LOG__CONSOLE: "both"
+    ports:
+      - "1883:1883"
+    healthcheck:
+      test: ["CMD-SHELL", "vmq-admin cluster show"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     networks:
       - sol-net
 

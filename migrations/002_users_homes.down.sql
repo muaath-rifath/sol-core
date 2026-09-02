@@ -1,6 +1,0 @@
-ALTER TABLE automation_rules DROP COLUMN IF EXISTS home_id;
-ALTER TABLE rooms DROP COLUMN IF EXISTS home_id;
-DROP TABLE IF EXISTS home_invitations;
-DROP TABLE IF EXISTS home_members;
-DROP TABLE IF EXISTS homes;
-DROP TABLE IF EXISTS users;

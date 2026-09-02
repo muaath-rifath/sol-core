@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI&amp;IoT Home Building Automation — Access Portal</title>
+  <meta name="description" content="Secure administrator login and member invitation portal for AI &amp; IoT Home Building Automation powered by ESP-32." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ════════════════════════════════════════════════════════════════════
+       §0  RESET & ROOT TOKENS
+    ════════════════════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* ── GRADIENTS: allowed ONLY on the body background & decorative orbs ── */
+      --bg-deep:   #04080f;
+      --bg-mid:    #070d1c;
+
+      /* ── GLASS PANEL surface (semi-transparent, NOT a CSS gradient) ── */
+      --glass-bg:        rgba(12, 20, 44, 0.52);
+      --glass-border:    rgba(255, 255, 255, 0.075);
+      --glass-highlight: rgba(255, 255, 255, 0.06);
+      --glass-shadow:
+        0 56px 140px rgba(0, 0, 0, 0.75),
+        0 20px 60px  rgba(0, 0, 0, 0.50),
+        inset 0 1px 0 rgba(255, 255, 255, 0.075),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+
+      /* ── SOLID MATTE PALETTE — zero gradients on any UI component ── */
+      --c-primary:    #3d5afe;   /* royal indigo — solid */
+      --c-primary-h:  #304ffe;   /* darker hover         */
+      --c-primary-a:  #283593;   /* press/active         */
+
+      --c-s0: #050b18;   /* darkest surface */
+      --c-s1: #0b1228;   /* dark surface    */
+      --c-s2: #101d3a;   /* mid surface     */
+      --c-s3: #172248;   /* lighter surface */
+      --c-s4: #1e2d5c;   /* lightest surface */
+
+      --c-border:   #1a2850;   /* solid matte border */
+      --c-border-l: #233266;   /* lighter border     */
+
+      --c-success:    #00c98b;
+      --c-success-bg: rgba(0, 201, 139, 0.08);
+      --c-warn:       #f0ad00;
+      --c-danger:     #e53935;
+
+      /* ── TEXT — solid colours, no gradients ── */
+      --t-hi:  #dde6ff;
+      --t-mid: #7d95d4;
+      --t-lo:  #46598e;
+      --t-wht: #ffffff;
+
+      /* ── RADII ── */
+      --r-xs: 4px;
+      --r-sm: 8px;
+      --r-md: 12px;
+      --r-lg: 18px;
+      --r-xl: 26px;
+      --r-2xl: 36px;
+
+      /* ── TYPOGRAPHY ── */
+      --f-ui:   'Inter', system-ui, sans-serif;
+      --f-head: 'Space Grotesk', system-ui, sans-serif;
+
+      /* ── EASING ── */
+      --ease:     cubic-bezier(.4, 0, .2, 1);
+      --ease-spr: cubic-bezier(.34, 1.56, .64, 1);
+      --t: 0.17s;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: var(--f-ui);
+      color: var(--t-hi);
+      overflow-x: hidden;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §1  ANIMATED GRADIENT BACKGROUND — GRADIENTS CONFINED HERE ONLY
+    ════════════════════════════════════════════════════════════════════ */
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(ellipse 90% 60% at 15% 10%,  #101f6a 0%,  transparent 55%),
+        radial-gradient(ellipse 70% 70% at 88% 92%,  #1a0847 0%,  transparent 52%),
+        radial-gradient(ellipse 50% 55% at 72% 20%,  #061636 0%,  transparent 48%),
+        radial-gradient(ellipse 80% 80% at 35% 80%,  #0b1230 0%,  transparent 60%),
+        radial-gradient(ellipse 120% 120% at 50% 50%, var(--bg-mid) 0%, var(--bg-deep) 100%);
+    }
+
+    /* Subtle star-field */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 0;
+      background-image:
+        radial-gradient(1px 1px at  7% 15%, rgba(255,255,255,.60) 0%, transparent 100%),
+        radial-gradient(1px 1px at 73% 8%,  rgba(255,255,255,.50) 0%, transparent 100%),
+        radial-gradient(1px 1px at 42% 62%, rgba(255,255,255,.35) 0%, transparent 100%),
+        radial-gradient(1px 1px at 88% 42%, rgba(255,255,255,.45) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 4% 79%, rgba(255,255,255,.30) 0%, transparent 100%),
+        radial-gradient(1px 1px at 60% 90%, rgba(255,255,255,.22) 0%, transparent 100%),
+        radial-gradient(1px 1px at 28% 48%, rgba(255,255,255,.20) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 94% 72%, rgba(255,255,255,.28) 0%, transparent 100%),
+        radial-gradient(1px 1px at 50% 30%, rgba(255,255,255,.17) 0%, transparent 100%),
+        radial-gradient(1px 1px at 19% 87%, rgba(255,255,255,.22) 0%, transparent 100%),
+        radial-gradient(1px 1px at 65% 54%, rgba(255,255,255,.15) 0%, transparent 100%),
+        radial-gradient(1px 1px at 37% 26%, rgba(255,255,255,.20) 0%, transparent 100%),
+        radial-gradient(1px 1px at 81% 20%, rgba(255,255,255,.14) 0%, transparent 100%),
+        radial-gradient(1px 1px at 12% 55%, rgba(255,255,255,.18) 0%, transparent 100%);
+    }
+
+    /* Ambient glow orbs behind the panel */
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 0;
+      background-image:
+        radial-gradient(260px 260px at 14% 20%, rgba(61,90,254,.09) 0%, transparent 100%),
+        radial-gradient(320px 320px at 90% 85%, rgba(100,44,220,.07) 0%, transparent 100%),
+        radial-gradient(190px 190px at 68% 38%, rgba(61,90,254,.06) 0%, transparent 100%);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §2  HEADER
+    ════════════════════════════════════════════════════════════════════ */
+    header {
+      position: relative; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px; height: 66px;
+      background: rgba(4, 8, 15, 0.72);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.046);
+      backdrop-filter: blur(22px) saturate(1.4);
+      -webkit-backdrop-filter: blur(22px) saturate(1.4);
+    }
+
+    /* ── Logo ── */
+    .logo {
+      display: flex; align-items: center; gap: 13px;
+      text-decoration: none; user-select: none;
+    }
+
+    .logo-mark {
+      width: 40px; height: 40px;
+      background: var(--c-primary);          /* solid — no gradient */
+      border-radius: var(--r-sm);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: background var(--t) var(--ease),
+                  transform  var(--t) var(--ease-spr);
+    }
+    .logo:hover .logo-mark {
+      background: var(--c-primary-h);
+      transform: scale(1.07);
+    }
+    .logo-mark svg {
+      width: 22px; height: 22px;
+      fill: none; stroke: #fff;
+      stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    .logo-text {
+      font-family: var(--f-head);
+      font-size: 1.1rem; font-weight: 700;
+      letter-spacing: -0.03em;
+      color: var(--t-hi);                    /* solid — no gradient */
+      line-height: 1.1;
+    }
+    .logo-text small {
+      display: block;
+      font-family: var(--f-ui);
+      font-size: 0.64rem; font-weight: 400;
+      color: var(--t-lo);
+      letter-spacing: 0.1em; text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    /* ── Header action buttons — solid matte ── */
+    .header-nav { display: flex; align-items: center; gap: 9px; }
+
+    .btn-hdr {
+      font-family: var(--f-ui);
+      font-size: 0.79rem; font-weight: 500;
+      padding: 8px 18px; border-radius: var(--r-sm);
+      cursor: pointer; letter-spacing: 0.015em;
+      transition:
+        background var(--t) var(--ease),
+        color      var(--t) var(--ease),
+        transform  var(--t) var(--ease-spr);
+      display: inline-flex; align-items: center; gap: 7px;
+    }
+    .btn-hdr:active { transform: scale(0.96); }
+    .btn-hdr svg {
+      width: 14px; height: 14px; flex-shrink: 0;
+      fill: none; stroke: currentColor;
+      stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    #btn-manual {
+      background: var(--c-s2);              /* solid dark — no gradient */
+      color: var(--t-mid);
+      border: 1px solid var(--c-border);
+    }
+    #btn-manual:hover {
+      background: var(--c-s3);
+      color: var(--t-hi);
+      transform: translateY(-1px);
+    }
+
+    #btn-help {
+      background: var(--c-primary);         /* solid indigo — no gradient */
+      color: var(--t-wht); border: none;
+    }
+    #btn-help:hover {
+      background: var(--c-primary-h);
+      transform: translateY(-1px);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §3  MAIN — centred flex container
+    ════════════════════════════════════════════════════════════════════ */
+    main {
+      position: relative; z-index: 1;
+      flex: 1; display: flex;
+      align-items: center; justify-content: center;
+      padding: 52px 20px;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §4  LEVITATING GLASS PANEL
+    ════════════════════════════════════════════════════════════════════ */
+    .glass-panel {
+      position: relative;
+      width: 100%; max-width: 468px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(40px) saturate(1.7) brightness(1.06);
+      -webkit-backdrop-filter: blur(40px) saturate(1.7) brightness(1.06);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--r-2xl);
+      box-shadow: var(--glass-shadow);
+      padding: 46px 46px 42px;
+      overflow: hidden;
+      animation: levitate 8s ease-in-out infinite;
+    }
+
+    /* Top-rim catchlight — NOT a gradient, just a semi-opaque line */
+    .glass-panel::before {
+      content: '';
+      position: absolute; top: 0; left: 8%; right: 8%;
+      height: 1px;
+      background: var(--glass-highlight);
+      border-radius: 0 0 50% 50%;
+    }
+
+    @keyframes levitate {
+      0%   { transform: translateY(0px);   }
+      25%  { transform: translateY(-8px);  }
+      55%  { transform: translateY(-16px); }
+      80%  { transform: translateY(-8px);  }
+      100% { transform: translateY(0px);   }
+    }
+
+    /* ── Panel brand zone ── */
+    .panel-brand {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .panel-icon {
+      width: 56px; height: 56px;
+      background: var(--c-primary);          /* solid — no gradient */
+      border-radius: var(--r-md);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 18px;
+    }
+    .panel-icon svg {
+      width: 28px; height: 28px;
+      fill: none; stroke: #fff;
+      stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    .panel-title {
+      font-family: var(--f-head);
+      font-size: 1.6rem; font-weight: 700;
+      letter-spacing: -0.035em;
+      color: var(--t-hi);                    /* solid — no gradient */
+      margin-bottom: 5px;
+    }
+    .panel-sub {
+      font-size: 0.815rem; color: var(--t-mid);
+      font-weight: 400; line-height: 1.55;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §5  TAB TOGGLE — solid matte, zero gradients
+    ════════════════════════════════════════════════════════════════════ */
+    .tab-bar {
+      display: flex;
+      background: var(--c-s0);              /* solid darkest surface */
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-md);
+      padding: 4px; gap: 4px;
+      margin-bottom: 28px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      font-family: var(--f-ui);
+      font-size: 0.85rem; font-weight: 500;
+      padding: 9px 0;
+      border: none; border-radius: calc(var(--r-md) - 3px);
+      cursor: pointer;
+      transition:
+        background var(--t) var(--ease),
+        color      var(--t) var(--ease);
+      background: transparent; color: var(--t-lo);
+    }
+    .tab-btn.active {
+      background: var(--c-primary);         /* solid indigo */
+      color: var(--t-wht);
+    }
+    .tab-btn:not(.active):hover {
+      background: var(--c-s3);
+      color: var(--t-mid);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §6  VIEW PANELS (show/hide)
+    ════════════════════════════════════════════════════════════════════ */
+    .view { display: none; flex-direction: column; gap: 16px; }
+    .view.active { display: flex; animation: fadeUp 0.26s var(--ease) forwards; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(7px); }
+      to   { opacity: 1; transform: translateY(0);   }
+    }
+
+    /* ── Inline alert ── */
+    .alert {
+      font-size: 0.79rem; font-weight: 500;
+      padding: 9px 13px; border-radius: var(--r-sm);
+      display: none;
+    }
+    .alert.show { display: block; }
+    .alert-error {
+      color: var(--c-danger);
+      background: rgba(229, 57, 53, 0.09);
+      border: 1px solid rgba(229, 57, 53, 0.22);
+    }
+    .alert-info {
+      color: var(--c-warn);
+      background: rgba(240, 173, 0, 0.09);
+      border: 1px solid rgba(240, 173, 0, 0.22);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §7  FIELD & INPUT COMPONENTS — solid matte, no gradients
+    ════════════════════════════════════════════════════════════════════ */
+    .field { display: flex; flex-direction: column; gap: 6px; }
+
+    .field > label {
+      font-size: 0.715rem; font-weight: 600;
+      color: var(--t-lo); letter-spacing: 0.08em;
+      text-transform: uppercase;
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+
+    .forgot-link {
+      font-size: 0.7rem; font-weight: 500;
+      color: var(--t-mid); text-decoration: none;
+      text-transform: none; letter-spacing: 0;
+      transition: color var(--t) var(--ease);
+    }
+    .forgot-link:hover { color: var(--c-primary); }
+
+    /* Input wrapper (for icon + eye-toggle) */
+    .input-wrap { position: relative; display: flex; align-items: center; }
+
+    .input-icon {
+      position: absolute; left: 13px;
+      width: 16px; height: 16px; pointer-events: none; flex-shrink: 0;
+      color: var(--t-lo);
+    }
+    .input-icon svg {
+      width: 100%; height: 100%; fill: none; stroke: currentColor;
+      stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {
+      font-family: var(--f-ui);
+      font-size: 0.9rem; color: var(--t-hi);
+      background: var(--c-s1);              /* solid dark — no gradient */
+      border: 1px solid var(--c-border);    /* solid matte border */
+      border-radius: var(--r-sm);
+      padding: 11px 14px 11px 40px;
+      width: 100%; outline: none;
+      transition:
+        border-color var(--t) var(--ease),
+        background   var(--t) var(--ease);
+    }
+    input::placeholder { color: var(--t-lo); }
+    input:focus {
+      border-color: var(--c-primary);       /* solid focus ring */
+      background: var(--c-s2);
+    }
+
+    /* password toggle eye */
+    .pw-eye {
+      position: absolute; right: 12px;
+      background: none; border: none; cursor: pointer; padding: 2px;
+      color: var(--t-lo); line-height: 0;
+      transition: color var(--t) var(--ease);
+    }
+    .pw-eye:hover { color: var(--t-mid); }
+    .pw-eye svg {
+      width: 17px; height: 17px; fill: none; stroke: currentColor;
+      stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    /* ── Checkbox row ── */
+    .check-row {
+      display: flex; align-items: center; gap: 9px;
+      font-size: 0.78rem; color: var(--t-mid);
+      cursor: pointer; user-select: none;
+    }
+    .check-row input[type="checkbox"] {
+      appearance: none; -webkit-appearance: none;
+      width: 16px; height: 16px; min-width: 16px;
+      background: var(--c-s1);              /* solid */
+      border: 1px solid var(--c-border);
+      border-radius: 4px; cursor: pointer;
+      display: grid; place-items: center;
+      transition: background var(--t) var(--ease), border-color var(--t) var(--ease);
+    }
+    .check-row input[type="checkbox"]:checked {
+      background: var(--c-primary);         /* solid on check */
+      border-color: var(--c-primary);
+    }
+    .check-row input[type="checkbox"]:checked::after {
+      content: '';
+      width: 9px; height: 5px;
+      border-left: 2px solid #fff;
+      border-bottom: 2px solid #fff;
+      transform: rotate(-48deg) translateY(-1px);
+      display: block;
+    }
+
+    /* ── Submit button — solid matte, no gradient ── */
+    .btn-submit {
+      font-family: var(--f-ui);
+      font-size: 0.91rem; font-weight: 600;
+      color: var(--t-wht);
+      background: var(--c-primary);         /* solid indigo — no gradient */
+      border: none; border-radius: var(--r-sm);
+      padding: 13px 0; width: 100%;
+      cursor: pointer; letter-spacing: 0.02em;
+      transition:
+        background var(--t) var(--ease),
+        transform  var(--t) var(--ease-spr),
+        box-shadow var(--t) var(--ease);
+      margin-top: 4px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-submit:hover {
+      background: var(--c-primary-h);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 32px rgba(61, 90, 254, 0.30);
+    }
+    .btn-submit:active {
+      background: var(--c-primary-a);
+      transform: translateY(0); box-shadow: none;
+    }
+    .btn-submit svg {
+      width: 16px; height: 16px; flex-shrink: 0;
+      fill: none; stroke: #fff;
+      stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §8  INVITE BANNER — solid surfaces
+    ════════════════════════════════════════════════════════════════════ */
+    .invite-banner {
+      background: var(--c-s2);              /* solid surface — no gradient */
+      border: 1px solid var(--c-border);    /* solid matte border */
+      border-radius: var(--r-md);
+      padding: 13px 16px;
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .ib-icon {
+      width: 34px; height: 34px; flex-shrink: 0;
+      background: var(--c-s3);              /* solid */
+      border-radius: var(--r-xs);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ib-icon svg {
+      width: 17px; height: 17px; fill: none;
+      stroke: var(--c-warn); stroke-width: 1.7;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .ib-body { flex: 1; }
+    .ib-title {
+      font-size: 0.79rem; font-weight: 600;
+      color: var(--t-hi); margin-bottom: 3px;
+    }
+    .ib-desc {
+      font-size: 0.7rem; color: var(--t-lo); line-height: 1.5;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §9  DRAG & DROP ZONE — solid dashed border, no gradients anywhere
+    ════════════════════════════════════════════════════════════════════ */
+    .dz-label {
+      font-size: 0.715rem; font-weight: 600;
+      color: var(--t-lo); letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .drop-zone {
+      position: relative;
+      border: 2px dashed var(--c-border);   /* solid dashed — no gradient */
+      border-radius: var(--r-md);
+      padding: 28px 24px 24px;
+      display: flex; flex-direction: column; align-items: center; gap: 9px;
+      cursor: pointer; text-align: center;
+      background: transparent;             /* solid transparent */
+      transition:
+        border-color var(--t) var(--ease),
+        background   var(--t) var(--ease);
+      overflow: hidden;
+    }
+
+    /* Hidden native file input covers the entire zone */
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0;
+      opacity: 0; width: 100%; height: 100%; cursor: pointer;
+    }
+
+    /* Icon badge */
+    .dz-icon {
+      width: 48px; height: 48px;
+      background: var(--c-s2);              /* solid — no gradient */
+      border-radius: var(--r-sm);
+      display: flex; align-items: center; justify-content: center;
+      transition: background var(--t) var(--ease);
+      flex-shrink: 0;
+    }
+    .dz-icon svg {
+      width: 24px; height: 24px; fill: none;
+      stroke: var(--c-primary); stroke-width: 1.65;
+      stroke-linecap: round; stroke-linejoin: round;
+      transition: stroke var(--t) var(--ease);
+    }
+
+    .dz-title {
+      font-weight: 600; font-size: 0.9rem; color: var(--t-hi);
+    }
+    .dz-hint {
+      font-size: 0.73rem; color: var(--t-lo); line-height: 1.55;
+    }
+
+    /* Format pill tags */
+    .dz-pills {
+      display: flex; gap: 5px; flex-wrap: wrap; justify-content: center;
+      margin-top: 2px;
+    }
+    .dz-pill {
+      font-size: 0.63rem; font-weight: 600; letter-spacing: 0.05em;
+      background: var(--c-s3);              /* solid — no gradient */
+      border: 1px solid var(--c-border);    /* solid border */
+      color: var(--t-lo);
+      border-radius: var(--r-xs); padding: 2px 8px;
+    }
+
+    /* File-accepted status line */
+    .dz-file-name {
+      font-size: 0.79rem; font-weight: 600;
+      color: var(--c-success); display: none; margin-top: 2px;
+    }
+
+    /* ── DRAG-OVER state — solid highlight, no gradient ── */
+    .drop-zone.drag-over {
+      border-color: var(--c-primary);
+      background: var(--c-s2);              /* solid matte lift */
+    }
+    .drop-zone.drag-over .dz-icon {
+      background: var(--c-primary);         /* solid */
+    }
+    .drop-zone.drag-over .dz-icon svg { stroke: #fff; }
+    .drop-zone.drag-over .dz-title   { color: var(--t-wht); }
+
+    /* ── FILE-ACCEPTED state — solid success tint ── */
+    .drop-zone.file-ok {
+      border-color: var(--c-success);
+      background: var(--c-success-bg);      /* solid tint */
+    }
+    .drop-zone.file-ok .dz-icon {
+      background: rgba(0, 201, 139, 0.14);  /* solid tint */
+    }
+    .drop-zone.file-ok .dz-icon svg { stroke: var(--c-success); }
+    .drop-zone.file-ok .dz-file-name { display: block; }
+
+    /* ── CLEAR button (shown after file accepted) ── */
+    .dz-clear {
+      display: none;
+      background: none; border: none; cursor: pointer;
+      font-family: var(--f-ui);
+      font-size: 0.7rem; font-weight: 500;
+      color: var(--c-danger);
+      transition: color var(--t) var(--ease);
+      margin-top: -4px;
+    }
+    .dz-clear:hover { color: #ef5350; }
+    .file-ok + .dz-clear,
+    .drop-zone.file-ok ~ .dz-clear { display: inline-block; }
+
+    /* ── OR browse link ── */
+    .dz-browse {
+      background: none; border: none; cursor: pointer;
+      font-family: var(--f-ui); font-size: 0.73rem; font-weight: 500;
+      color: var(--c-primary);               /* solid — no gradient */
+      text-decoration: underline;
+      pointer-events: auto;                  /* above the invisible <input> */
+      position: relative; z-index: 2;
+      transition: color var(--t) var(--ease);
+    }
+    .dz-browse:hover { color: var(--c-primary-h); }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §10  FOOTER — ESP-32 Global Connection Status
+    ════════════════════════════════════════════════════════════════════ */
+    footer {
+      position: relative; z-index: 50;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 10px;
+      padding: 0 48px; height: 54px;
+      background: rgba(4, 8, 15, 0.72);
+      border-top: 1px solid rgba(255, 255, 255, 0.044);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+    }
+
+    .footer-copy {
+      font-size: 0.7rem; color: var(--t-lo); letter-spacing: 0.01em;
+    }
+
+    /* ESP-32 status cluster */
+    .esp-cluster { display: flex; align-items: center; gap: 8px; }
+
+    .esp-pill {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--c-s0);              /* solid darkest — no gradient */
+      border: 1px solid var(--c-border);    /* solid border */
+      border-radius: 100px;
+      padding: 5px 14px 5px 9px;
+    }
+
+    /* Animated pulsing dot */
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+      background: var(--c-success);          /* solid green */
+      animation: pulse-dot 2.6s ease-in-out infinite;
+    }
+    .status-dot.warn    { background: var(--c-warn);    animation-duration: 1.4s; }
+    .status-dot.offline { background: var(--c-danger);  animation: none; }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.22; }
+    }
+
+    .status-lbl {
+      font-size: 0.71rem; font-weight: 500;
+      letter-spacing: 0.025em;
+      color: var(--t-mid);                   /* solid — no gradient */
+    }
+
+    .status-chip {
+      font-size: 0.63rem; font-weight: 700; letter-spacing: 0.07em;
+      text-transform: uppercase;
+      border-radius: 3px; padding: 2px 7px;
+      /* Solid fill — no gradient */
+    }
+    .status-chip.online {
+      color: var(--c-success);
+      background: rgba(0, 201, 139, 0.13);
+    }
+    .status-chip.warn {
+      color: var(--c-warn);
+      background: rgba(240, 173, 0, 0.13);
+    }
+    .status-chip.offline {
+      color: var(--c-danger);
+      background: rgba(229, 57, 53, 0.13);
+    }
+
+    .esp-meta {
+      font-size: 0.69rem; color: var(--t-lo); letter-spacing: 0.01em;
+    }
+    .esp-meta strong { color: var(--t-mid); font-weight: 500; }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §11  DIVIDER LINE
+    ════════════════════════════════════════════════════════════════════ */
+    .divider {
+      display: flex; align-items: center; gap: 12px; margin: 0;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px;
+      background: var(--c-border);           /* solid line — no gradient */
+    }
+    .divider-text {
+      font-size: 0.67rem; font-weight: 600;
+      color: var(--t-lo); text-transform: uppercase; letter-spacing: 0.1em;
+      white-space: nowrap;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════
+       §12  RESPONSIVE
+    ════════════════════════════════════════════════════════════════════ */
+    @media (max-width: 600px) {
+      header { padding: 0 20px; }
+      footer  { padding: 0 20px; height: auto; padding-block: 12px; }
+      main    { padding: 28px 14px; }
+      .glass-panel { padding: 28px 22px 26px; border-radius: var(--r-xl); }
+      #btn-manual  { display: none; }
+      .esp-meta    { display: none; }
+      .panel-title { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════ HEADER ══════════════════════════════════════════ -->
+  <header role="banner">
+
+    <a class="logo" href="#" id="logo-link" aria-label="AI&IoT Home Building Automation — Home">
+      <div class="logo-mark" aria-hidden="true">
+        <!-- WiFi / Hub icon — represents IoT connectivity -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M1.5 8.5a13.5 13.5 0 0 1 21 0"/>
+          <path d="M5 12a10 10 0 0 1 14 0"/>
+          <path d="M8.5 15.5a6 6 0 0 1 7 0"/>
+          <circle cx="12" cy="19" r="1" fill="#fff" stroke="none"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        AI&amp;IoT Automation
+        <small>Home &bull; Building &bull; ESP-32</small>
+      </div>
+    </a>
+
+    <nav class="header-nav" aria-label="Support actions">
+      <button class="btn-hdr" id="btn-manual" type="button" aria-label="Open the User Manual">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          <line x1="9" y1="7"  x2="15" y2="7"/>
+          <line x1="9" y1="11" x2="15" y2="11"/>
+        </svg>
+        User Manual
+      </button>
+
+      <button class="btn-hdr" id="btn-help" type="button" aria-label="Ask for Help">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+          <line x1="12" y1="17" x2="12.01" y2="17" stroke-width="2.5"/>
+        </svg>
+        Ask for Help
+      </button>
+    </nav>
+  </header>
+
+  <!-- ══════════════════════════════════════════ MAIN ══════════════════════════════════════════ -->
+  <main id="main" role="main">
+    <div class="glass-panel" id="glass-panel" role="region" aria-label="Authentication Panel">
+
+      <!-- Panel brand -->
+      <div class="panel-brand">
+        <div class="panel-icon" aria-hidden="true">
+          <!-- Shield with wifi: secure home access -->
+          <svg viewBox="0 0 24 24">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M8.5 13.5a5 5 0 0 1 7 0" stroke-width="1.4"/>
+            <path d="M10 15.5a2.5 2.5 0 0 1 4 0" stroke-width="1.4"/>
+            <circle cx="12" cy="17.5" r="0.8" fill="#fff" stroke="none"/>
+          </svg>
+        </div>
+        <h1 class="panel-title" id="panel-title">Admin Login</h1>
+        <p  class="panel-sub"   id="panel-sub">Secure access to your AI &amp; IoT home &amp; building network</p>
+      </div>
+
+      <!-- Tab toggle -->
+      <div class="tab-bar" role="tablist" aria-label="Authentication mode">
+        <button
+          class="tab-btn active"
+          id="tab-login"
+          role="tab" aria-selected="true" aria-controls="view-login"
+          type="button"
+        >Log In</button>
+        <button
+          class="tab-btn"
+          id="tab-signup"
+          role="tab" aria-selected="false" aria-controls="view-signup"
+          type="button"
+        >Sign Up / Invite</button>
+      </div>
+
+      <!-- Inline alert (shared) -->
+      <div class="alert alert-error" id="form-alert" role="alert" aria-live="assertive"></div>
+
+      <!-- ──────────────────── LOG IN VIEW ──────────────────── -->
+      <div class="view active" id="view-login" role="tabpanel" aria-labelledby="tab-login">
+
+        <div class="field">
+          <label for="login-email">Administrator Email</label>
+          <div class="input-wrap">
+            <span class="input-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+            </span>
+            <input
+              type="email" id="login-email" name="login-email"
+              placeholder="admin@home.local"
+              autocomplete="email" required
+            />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="login-password">
+            Admin Password
+            <a href="#" class="forgot-link" id="forgot-link">Forgot password?</a>
+          </label>
+          <div class="input-wrap">
+            <span class="input-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </span>
+            <input
+              type="password" id="login-password" name="login-password"
+              placeholder="••••••••••••"
+              autocomplete="current-password" required
+            />
+            <button class="pw-eye" type="button" id="pw-toggle" aria-label="Toggle password visibility">
+              <!-- Eye icon -->
+              <svg id="eye-show" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg id="eye-hide" viewBox="0 0 24 24" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <label class="check-row" for="remember-me">
+          <input type="checkbox" id="remember-me" name="remember-me" />
+          Keep me signed in on this device
+        </label>
+
+        <button class="btn-submit" id="btn-login" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+            <polyline points="10 17 15 12 10 7"/>
+            <line x1="15" y1="12" x2="3" y2="12"/>
+          </svg>
+          Log In to Dashboard
+        </button>
+
+      </div><!-- /view-login -->
+
+      <!-- ──────────────────── SIGN UP / INVITE VIEW ──────────────────── -->
+      <div class="view" id="view-signup" role="tabpanel" aria-labelledby="tab-signup">
+
+        <!-- Invitation-only notice banner -->
+        <div class="invite-banner" aria-label="Invitation notice">
+          <div class="ib-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.59 3.29 2 2 0 0 1 3.56 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.54a16 16 0 0 0 5.55 5.55l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 15.46"/>
+            </svg>
+          </div>
+          <div class="ib-body">
+            <p class="ib-title">Invitation-Only Network Access</p>
+            <p class="ib-desc">You must have received a token file from the admin to join this network.</p>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="signup-name">Full Name</label>
+          <div class="input-wrap">
+            <span class="input-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            <input type="text" id="signup-name" name="signup-name" placeholder="Ada Lovelace" autocomplete="name" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="signup-email">Email Address</label>
+          <div class="input-wrap">
+            <span class="input-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+            </span>
+            <input type="email" id="signup-email" name="signup-email" placeholder="you@example.com" autocomplete="email" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="signup-password">Create Password</label>
+          <div class="input-wrap">
+            <span class="input-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </span>
+            <input type="password" id="signup-password" name="signup-password" placeholder="Min. 8 characters" autocomplete="new-password" required />
+          </div>
+        </div>
+
+        <!-- ── DRAG & DROP ZONE ── -->
+        <div>
+          <p class="dz-label" style="margin-bottom:7px;">Invitation Token File</p>
+          <div
+            class="drop-zone"
+            id="drop-zone"
+            role="button"
+            tabindex="0"
+            aria-label="Drop your invitation token file here, or click to browse"
+          >
+            <!-- Invisible file input covers the entire zone area -->
+            <input
+              type="file"
+              id="token-file-input"
+              name="token-file"
+              accept=".tok,.token,.json,.inv"
+              aria-label="Upload invitation token file"
+              tabindex="-1"
+            />
+
+            <div class="dz-icon" id="dz-icon-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" id="dz-svg">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </div>
+
+            <p class="dz-title" id="dz-title">Drop your token file here</p>
+            <p class="dz-hint" id="dz-hint">Drag &amp; drop your <strong style="color:var(--t-mid)">invitation token</strong> issued by your network admin</p>
+
+            <div class="dz-pills" id="dz-pills">
+              <span class="dz-pill">.tok</span>
+              <span class="dz-pill">.token</span>
+              <span class="dz-pill">.json</span>
+              <span class="dz-pill">.inv</span>
+            </div>
+
+            <p class="dz-file-name" id="dz-filename" aria-live="polite"></p>
+          </div>
+          <!-- Clear button sits outside the zone's stacking context -->
+          <button class="dz-clear" id="dz-clear" type="button" aria-label="Remove selected file" style="display:none">
+            ✕ Remove file
+          </button>
+        </div>
+
+        <button class="btn-submit" id="btn-signup" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <line x1="19" y1="8" x2="19" y2="14"/>
+            <line x1="22" y1="11" x2="16" y2="11"/>
+          </svg>
+          Request Network Access
+        </button>
+
+      </div><!-- /view-signup -->
+
+    </div><!-- /glass-panel -->
+  </main>
+
+  <!-- ══════════════════════════════════════════ FOOTER ══════════════════════════════════════════ -->
+  <footer role="contentinfo">
+    <p class="footer-copy">&copy; 2026 AI&amp;IoT Home Building Automation. All rights reserved.</p>
+
+    <div class="esp-cluster" aria-label="ESP-32 hardware status">
+      <div class="esp-pill">
+        <span class="status-dot" id="status-dot" aria-hidden="true"></span>
+        <span class="status-lbl">ESP-32 Gateway</span>
+        <span class="status-chip online" id="status-chip">Online</span>
+      </div>
+      <p class="esp-meta" id="esp-meta">
+        <strong>Node:</strong>&nbsp;ESP32-S3&nbsp;&nbsp;
+        <strong>IP:</strong>&nbsp;192.168.1.42&nbsp;&nbsp;
+        <strong>Signal:</strong>&nbsp;-54&nbsp;dBm
+      </p>
+    </div>
+  </footer>
+
+  <!-- ══════════════════════════════════════════ JAVASCRIPT ══════════════════════════════════════ -->
+  <script>
+    'use strict';
+
+    /* ── ESP-32 status mock (replace with real WebSocket / fetch poll) ── */
+    const ESP_STATES = ['online', 'warn', 'offline'];
+    let espIndex = 0;                              // starts Online
+
+    function applyEspState(state) {
+      const dot   = document.getElementById('status-dot');
+      const chip  = document.getElementById('status-chip');
+      const meta  = document.getElementById('esp-meta');
+
+      dot.className  = 'status-dot';
+      chip.className = 'status-chip';
+
+      if (state === 'online') {
+        dot.classList.add('');                     // default green
+        chip.classList.add('online');
+        chip.textContent = 'Online';
+        meta.style.display = '';
+      } else if (state === 'warn') {
+        dot.classList.add('warn');
+        chip.classList.add('warn');
+        chip.textContent = 'Degraded';
+        meta.style.display = '';
+      } else {
+        dot.classList.add('offline');
+        chip.classList.add('offline');
+        chip.textContent = 'Offline';
+        meta.style.display = 'none';
+      }
+    }
+
+    /* Demo: cycle status every 8 s so the reviewer can see all states */
+    applyEspState('online');
+    setInterval(() => {
+      espIndex = (espIndex + 1) % ESP_STATES.length;
+      applyEspState(ESP_STATES[espIndex]);
+    }, 8000);
+
+    /* ── View Toggle ── */
+    const tabLogin  = document.getElementById('tab-login');
+    const tabSignup = document.getElementById('tab-signup');
+    const viewLogin  = document.getElementById('view-login');
+    const viewSignup = document.getElementById('view-signup');
+    const panelTitle = document.getElementById('panel-title');
+    const panelSub   = document.getElementById('panel-sub');
+    const formAlert  = document.getElementById('form-alert');
+
+    function showAlert(msg, type = 'error') {
+      formAlert.textContent = msg;
+      formAlert.className = `alert alert-${type} show`;
+    }
+    function clearAlert() {
+      formAlert.className = 'alert alert-error';
+      formAlert.textContent = '';
+    }
+
+    function switchToLogin() {
+      tabLogin.classList.add('active');   tabLogin.setAttribute('aria-selected', 'true');
+      tabSignup.classList.remove('active'); tabSignup.setAttribute('aria-selected', 'false');
+      viewLogin.classList.add('active');
+      viewSignup.classList.remove('active');
+      panelTitle.textContent = 'Admin Login';
+      panelSub.textContent   = 'Secure access to your AI & IoT home & building network';
+      clearAlert();
+    }
+
+    function switchToSignup() {
+      tabSignup.classList.add('active');  tabSignup.setAttribute('aria-selected', 'true');
+      tabLogin.classList.remove('active');  tabLogin.setAttribute('aria-selected', 'false');
+      viewSignup.classList.add('active');
+      viewLogin.classList.remove('active');
+      panelTitle.textContent = 'Member Invite';
+      panelSub.textContent   = 'Drop your invitation token to join the AI&IoT network';
+      clearAlert();
+    }
+
+    tabLogin.addEventListener('click', switchToLogin);
+    tabSignup.addEventListener('click', switchToSignup);
+
+    /* ── Password eye toggle ── */
+    const pwInput  = document.getElementById('login-password');
+    const pwToggle = document.getElementById('pw-toggle');
+    const eyeShow  = document.getElementById('eye-show');
+    const eyeHide  = document.getElementById('eye-hide');
+
+    pwToggle.addEventListener('click', () => {
+      const hidden = pwInput.type === 'password';
+      pwInput.type = hidden ? 'text' : 'password';
+      eyeShow.style.display = hidden ? 'none' : '';
+      eyeHide.style.display = hidden ? ''     : 'none';
+      pwToggle.setAttribute('aria-label', hidden ? 'Hide password' : 'Show password');
+    });
+
+    /* ── Drag & Drop Zone ── */
+    const dropZone  = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('token-file-input');
+    const dzTitle   = document.getElementById('dz-title');
+    const dzHint    = document.getElementById('dz-hint');
+    const dzPills   = document.getElementById('dz-pills');
+    const dzFile    = document.getElementById('dz-filename');
+    const dzClear   = document.getElementById('dz-clear');
+
+    let droppedFile = null;
+
+    function setFileAccepted(file) {
+      droppedFile = file;
+      dropZone.classList.add('file-ok');
+      dropZone.classList.remove('drag-over');
+      dzFile.textContent = '✓ ' + file.name;
+      dzTitle.textContent = 'Token loaded';
+      dzHint.textContent  = 'File is ready to submit with your registration.';
+      dzPills.style.display = 'none';
+      dzClear.style.display = 'inline-block';
+    }
+
+    function clearFile() {
+      droppedFile = null;
+      fileInput.value = '';
+      dropZone.classList.remove('file-ok', 'drag-over');
+      dzFile.textContent  = '';
+      dzTitle.textContent = 'Drop your token file here';
+      dzHint.innerHTML    = 'Drag &amp; drop your <strong style="color:var(--t-mid)">invitation token</strong> issued by your network admin';
+      dzPills.style.display = '';
+      dzClear.style.display = 'none';
+    }
+
+    /* Drag enter / over */
+    ['dragenter', 'dragover'].forEach(evt => {
+      dropZone.addEventListener(evt, e => {
+        e.preventDefault();
+        if (!dropZone.classList.contains('file-ok')) {
+          dropZone.classList.add('drag-over');
+        }
+      });
+    });
+
+    /* Drag leave */
+    dropZone.addEventListener('dragleave', e => {
+      /* Only remove if leaving the zone entirely */
+      if (!dropZone.contains(e.relatedTarget)) {
+        dropZone.classList.remove('drag-over');
+      }
+    });
+
+    /* Drop */
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        setFileAccepted(files[0]);
+      }
+    });
+
+    /* Click / keyboard to open native picker */
+    dropZone.addEventListener('click', e => {
+      /* Don't re-trigger if clicking the hidden <input> itself */
+      if (e.target !== fileInput) fileInput.click();
+    });
+    dropZone.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+    });
+
+    /* Native file input change */
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files.length > 0) {
+        setFileAccepted(fileInput.files[0]);
+      }
+    });
+
+    /* Clear button */
+    dzClear.addEventListener('click', e => {
+      e.stopPropagation();
+      clearFile();
+    });
+
+    /* ── Form submit stubs ── */
+    document.getElementById('btn-login').addEventListener('click', () => {
+      const email = document.getElementById('login-email').value.trim();
+      const pass  = document.getElementById('login-password').value;
+      if (!email || !pass) {
+        showAlert('Please enter your administrator email and password.');
+        return;
+      }
+      clearAlert();
+      /* TODO: replace with your API call */
+      console.log('[AI&IoT] Login attempt:', email);
+    });
+
+    document.getElementById('btn-signup').addEventListener('click', () => {
+      const name  = document.getElementById('signup-name').value.trim();
+      const email = document.getElementById('signup-email').value.trim();
+      const pass  = document.getElementById('signup-password').value;
+      if (!name || !email || !pass) {
+        showAlert('Please fill in all fields before submitting.');
+        return;
+      }
+      if (!droppedFile) {
+        showAlert('Please drop or select your invitation token file.', 'error');
+        return;
+      }
+      clearAlert();
+      /* TODO: replace with FormData POST to your API */
+      console.log('[AI&IoT] Signup attempt:', name, email, droppedFile.name);
+    });
+
+    /* ── Header button stubs ── */
+    document.getElementById('btn-manual').addEventListener('click', () => {
+      alert('📖 SOL User Manual\n\nOpening documentation…\n(Connect this to your docs URL.)');
+    });
+    document.getElementById('btn-help').addEventListener('click', () => {
+      alert('💬 Ask for Help\n\nOpening support chat…\n(Connect this to your helpdesk URL.)');
+    });
+
+    /* ── Forgot password stub ── */
+    document.getElementById('forgot-link').addEventListener('click', e => {
+      e.preventDefault();
+      showAlert('Password reset link will be sent to your registered email.', 'info');
+    });
+  </script>
+</body>
+</html>
